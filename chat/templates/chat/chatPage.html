@@ -60,9 +60,14 @@ Chat with {{ other_user.username }}
     }
 
     .read-status {
-        font-size: 0.7rem;
+        font-size: 0.8rem;
         margin-left: 0.5rem;
-        opacity: 0.6;
+        color: var(--text-secondary);
+        font-weight: bold;
+    }
+
+    .read-status.read {
+        color: #34b7f1;
     }
 
     .chat-input-area {
@@ -103,13 +108,17 @@ Chat with {{ other_user.username }}
                 <div class="meta">
                     <span>
                         {% if message.sender == current_user %}
-                            You
+                        You
                         {% else %}
                         {{ message.sender.username }}
                         {% endif %}
                     </span>
-                    {% if message.sender == current_user and message.read_by.exists %}
-                    <span class="read-status">Read</span>
+                    {% if message.sender == current_user %}
+                    {% if message.read_by.exists %}
+                    <span class="read-status read">✓✓</span>
+                    {% else %}
+                    <span class="read-status">✓</span>
+                    {% endif %}
                     {% endif %}
                 </div>
                 {{ message.content }}
@@ -174,7 +183,7 @@ Chat with {{ other_user.username }}
         messageElement.innerHTML = `
             <div class="meta">
                 <span>${isMe ? 'You' : sender}</span>
-                ${isMe ? '<span class="read-status"></span>' : ''}
+                ${isMe ? '<span class="read-status">✓</span>' : ''}
             </div>
             ${message}
         `;
@@ -202,7 +211,10 @@ Chat with {{ other_user.username }}
         const msgEl = document.getElementById(`msg-${data.message_id}`);
         if (msgEl && msgEl.classList.contains('sent')) {
             const statusSpan = msgEl.querySelector('.read-status');
-            if (statusSpan) statusSpan.textContent = 'Read';
+            if (statusSpan) {
+                statusSpan.innerHTML = '✓✓';
+                statusSpan.classList.add('read');
+            }
         }
     }
 
