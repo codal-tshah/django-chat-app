@@ -1,6 +1,5 @@
-# Django Chat App
-
-A premium, Django Channels-based chat application supporting group and private chats, now with advanced features like typing indicators and read receipts.
+# django-chat-app
+Using Django channels prepare a basic chat app
 
 ## Features
 - **Real-time Messaging**: Powered by Django Channels and WebSockets.
