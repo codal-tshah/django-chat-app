@@ -7,18 +7,24 @@
     <title>{% block title %}Chat App{% endblock %}</title>
     <style>
         :root {
-            --bg-color: #121212;
-            --surface-color: #1e1e1e;
-            --primary-color: #bb86fc;
-            --secondary-color: #03dac6;
-            --text-color: #e0e0e0;
-            --text-secondary: #a0a0a0;
-            --border-color: #333;
+            --bg-color: #e5ddd5;
+            /* WhatsApp-like background */
+            --surface-color: #ffffff;
+            --primary-color: #d9fdd3;
+            /* Outgoing message bubble */
+            --secondary-color: #00a884;
+            /* Accents */
+            --text-color: #111b21;
+            --text-secondary: #667781;
+            --border-color: #e9edef;
+            --header-bg: #008069;
+            --header-text: #ffffff;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
+            font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background-color: #d1d7db;
+            /* Outer background */
             color: var(--text-color);
             margin: 0;
             padding: 0;
@@ -28,31 +34,32 @@
         }
 
         header {
-            background-color: var(--surface-color);
+            background-color: var(--header-bg);
             padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid var(--border-color);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            color: var(--header-text);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         header h1 {
             margin: 0;
             font-size: 1.5rem;
-            color: var(--primary-color);
+            color: var(--header-text);
         }
 
         header nav a {
-            color: var(--text-color);
+            color: var(--header-text);
             text-decoration: none;
             margin-left: 1.5rem;
             font-weight: 500;
-            transition: color 0.3s;
+            opacity: 0.9;
+            transition: opacity 0.2s;
         }
 
         header nav a:hover {
-            color: var(--primary-color);
+            opacity: 1;
         }
 
         main {
@@ -87,36 +94,39 @@
 
         .btn-secondary {
             background-color: transparent;
-            border: 1px solid var(--primary-color);
-            color: var(--primary-color);
+            border: 1px solid #d1d7db;
+            color: var(--text-color);
         }
 
         .btn-secondary:hover {
-            background-color: rgba(187, 134, 252, 0.1);
+            background-color: #f0f2f5;
         }
 
         .card {
             background-color: var(--surface-color);
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 1.5rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
             margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
         }
 
         input[type="text"] {
-            background-color: #2c2c2c;
+            background-color: #ffffff;
             border: 1px solid var(--border-color);
             color: var(--text-color);
-            padding: 0.5rem;
-            border-radius: 4px;
+            padding: 0.8rem;
+            border-radius: 20px;
+            /* Rounded inputs like WhatsApp */
             width: 100%;
             box-sizing: border-box;
             margin-bottom: 1rem;
+            font-size: 1rem;
         }
 
         input[type="text"]:focus {
             outline: none;
-            border-color: var(--primary-color);
+            border-color: var(--secondary-color);
         }
 
         /* Scrollbar */

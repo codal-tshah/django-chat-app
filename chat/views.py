@@ -28,6 +28,20 @@ def chatPage(request):
     public_rooms = ChatRoom.objects.filter(type="group")
     users = User.objects.exclude(id=request.user.id)
     
+    # Calculate unread counts for private chats
+    for user in users:
+        # Construct the private room name
+        sorted_users = sorted([request.user.username, user.username])
+        room_name = f"private_{sorted_users[0]}_{sorted_users[1]}"
+        
+        # Count messages in this room not read by current user
+        unread_count = Message.objects.filter(
+            room__name=room_name,
+            room__type="private"
+        ).exclude(read_by=request.user).count()
+        
+        user.unread_count = unread_count
+
     return render(request, "chat/landingPage.html", {
         "public_rooms": public_rooms,
         "users": users

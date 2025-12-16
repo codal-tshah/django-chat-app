@@ -18,8 +18,10 @@
             {% for room in public_rooms %}
             <li style="margin-bottom: 0.5rem;">
                 <a href="{% url 'groupRoomPage' room.name %}" class="btn btn-secondary"
-                    style="display: block; text-align: center;">
-                    #{{ room.name }}
+                    style="display: flex; align-items: center; padding: 0.8rem; text-align: left; border-radius: 8px;">
+                    <span
+                        style="background: #e9edef; padding: 8px; border-radius: 50%; margin-right: 10px; color: #54656f;">#</span>
+                    {{ room.name }}
                 </a>
             </li>
             {% empty %}
@@ -37,8 +39,16 @@
             {% for u in users %}
             <li style="margin-bottom: 0.5rem;">
                 <a href="{% url 'privateRoomPage' u.username %}" class="btn btn-secondary"
-                    style="display: block; text-align: center;">
-                    @{{ u.username }}
+                    style="display: flex; align-items: center; padding: 0.8rem; text-align: left; border-radius: 8px;">
+                    <span
+                        style="background: #dfe3e5; padding: 8px; border-radius: 50%; margin-right: 10px; color: #54656f;">@</span>
+                    {{ u.username }}
+                    {% if u.unread_count > 0 %}
+                    <span
+                        style="margin-left: auto; background: #25d366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                        {{ u.unread_count }}
+                    </span>
+                    {% endif %}
                 </a>
             </li>
             {% empty %}

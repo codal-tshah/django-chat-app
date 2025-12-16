@@ -15,6 +15,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
+        # Mark all messages in this room as read by this user
+        read_msg_ids = await self.mark_room_read(self.room_name, self.scope["user"])
+        
+        if read_msg_ids:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "bulk_read",
+                    "message_ids": read_msg_ids,
+                    "username": self.scope["user"].username
+                }
+            )
+
         await self.accept()
 
     async def disconnect(self, close_code):
@@ -101,6 +114,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "username": username
         }))
 
+    async def bulk_read(self, event):
+        message_ids = event["message_ids"]
+        username = event["username"]
+
+        await self.send(text_data=json.dumps({
+            "type": "bulk_read",
+            "message_ids": message_ids,
+            "username": username
+        }))
+
     @database_sync_to_async
     def save_message(self, username, room_name, message_content):
         try:
@@ -120,3 +143,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message.read_by.add(user)
         except Exception as e:
             print(f"Error marking message read: {e}")
+
+    @database_sync_to_async
+    def mark_room_read(self, room_name, user):
+        read_msg_ids = []
+        try:
+            room = ChatRoom.objects.get(name=room_name)
+            messages = Message.objects.filter(room=room).exclude(read_by=user)
+            for msg in messages:
+                msg.read_by.add(user)
+                read_msg_ids.append(msg.id)
+        except Exception as e:
+            print(f"Error marking room read: {e}")
+        return read_msg_ids
