@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block title %}Lobby - Django Chat{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+    <!-- Public Rooms -->
+    <div class="card">
+        <h2>Public Rooms</h2>
+        <p style="color: var(--text-secondary);">Join a group conversation.</p>
+
+        <div style="margin-bottom: 1rem;">
+            <input type="text" id="newRoomInput" placeholder="Create or join a room...">
+            <button onclick="joinRoom()" class="btn" style="margin-top: 0.5rem; width: 100%;">Join Room</button>
+        </div>
+
+        <ul style="list-style: none; padding: 0;">
+            {% for room in public_rooms %}
+            <li style="margin-bottom: 0.5rem;">
+                <a href="{% url 'groupRoomPage' room.name %}" class="btn btn-secondary"
+                    style="display: block; text-align: center;">
+                    #{{ room.name }}
+                </a>
+            </li>
+            {% empty %}
+            <li style="color: var(--text-secondary);">No active rooms. Create one!</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Users -->
+    <div class="card">
+        <h2>Online Users</h2>
+        <p style="color: var(--text-secondary);">Start a private chat.</p>
+
+        <ul style="list-style: none; padding: 0;">
+            {% for u in users %}
+            <li style="margin-bottom: 0.5rem;">
+                <a href="{% url 'privateRoomPage' u.username %}" class="btn btn-secondary"
+                    style="display: block; text-align: center;">
+                    @{{ u.username }}
+                </a>
+            </li>
+            {% empty %}
+            <li style="color: var(--text-secondary);">No other users found.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<script>
+    function joinRoom() {
+        const roomName = document.getElementById('newRoomInput').value.trim();
+        if (roomName) {
+            window.location.href = `/chat/group/${roomName}/`;
+        }
+    }
+
+    document.getElementById('newRoomInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            joinRoom();
+        }
+    });
+</script>
+{% endblock %}

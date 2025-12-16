@@ -1,0 +1,4 @@
+.venv
+cookies.txt
+db.sqlite3
+implementation_docs.txt

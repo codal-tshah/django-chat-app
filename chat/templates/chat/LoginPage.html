@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - Django Chat{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: center; align-items: center; height: 100%;">
+    <div class="card" style="width: 100%; max-width: 400px; text-align: center;">
+        <h2 style="margin-top: 0;">Join the Chat</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 2rem;">Enter your username to get started.</p>
+
+        <form method="POST">
+            {% csrf_token %}
+            <div style="text-align: left; margin-bottom: 1rem;">
+                <label for="username"
+                    style="display: block; margin-bottom: 0.5rem; color: var(--text-secondary);">Username</label>
+                <input type="text" id="username" name="username" placeholder="e.g. Maverick" required autofocus>
+            </div>
+            <button type="submit" class="btn" style="width: 100%;">Enter Chat</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+
+{% block title %}
+{% if room_type == 'private' %}
+Chat with {{ other_user.username }}
+{% else %}
+#{{ room_name }}
+{% endif %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 140px);
+        /* Adjust based on header/padding */
+    }
+
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        background-color: #1a1a1a;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .message {
+        max-width: 70%;
+        padding: 0.8rem 1rem;
+        border-radius: 12px;
+        position: relative;
+        word-wrap: break-word;
+    }
+
+    .message.sent {
+        align-self: flex-end;
+        background-color: var(--primary-color);
+        color: #000;
+        border-bottom-right-radius: 2px;
+    }
+
+    .message.received {
+        align-self: flex-start;
+        background-color: #333;
+        color: var(--text-color);
+        border-bottom-left-radius: 2px;
+    }
+
+    .message .meta {
+        font-size: 0.75rem;
+        margin-bottom: 0.2rem;
+        opacity: 0.8;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .read-status {
+        font-size: 0.7rem;
+        margin-left: 0.5rem;
+        opacity: 0.6;
+    }
+
+    .chat-input-area {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    #typing-indicator {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        height: 1.2rem;
+        margin-left: 1rem;
+        font-style: italic;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="height: 100%; padding: 1rem;">
+    <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="margin: 0;">
+            {% if room_type == 'private' %}
+            @{{ other_user.username }}
+            {% else %}
+            #{{ room_name }}
+            {% endif %}
+        </h2>
+        <a href="{% url 'chatPage' %}" class="btn btn-secondary"
+            style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">Leave Room</a>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-messages" id="chat-log">
+            {% for message in messages %}
+            <div class="message {% if message.sender == current_user %}sent{% else %}received{% endif %}"
+                id="msg-{{ message.id }}">
+                <div class="meta">
+                    <span>
+                        {% if message.sender == current_user %}
+                            You
+                        {% else %}
+                        {{ message.sender.username }}
+                        {% endif %}
+                    </span>
+                    {% if message.sender == current_user and message.read_by.exists %}
+                    <span class="read-status">Read</span>
+                    {% endif %}
+                </div>
+                {{ message.content }}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div id="typing-indicator"></div>
+
+        <div class="chat-input-area">
+            <input type="text" id="chat-message-input" placeholder="Type a message..." autocomplete="off">
+            <button id="chat-message-submit" class="btn">Send</button>
+        </div>
+    </div>
+</div>
+
+{{ room_name|json_script:"room-name" }}
+{{ room_type|json_script:"room-type" }}
+{{ current_user.username|json_script:"user-username" }}
+
+<script>
+    const roomName = JSON.parse(document.getElementById('room-name').textContent);
+    const roomType = JSON.parse(document.getElementById('room-type').textContent);
+    const username = JSON.parse(document.getElementById('user-username').textContent);
+
+    let wsUrl;
+    if (roomType === 'private') {
+        wsUrl = 'ws://' + window.location.host + '/ws/chat/private/' + roomName + '/';
+    } else {
+        wsUrl = 'ws://' + window.location.host + '/ws/chat/group/' + roomName + '/';
+    }
+
+    const chatSocket = new WebSocket(wsUrl);
+
+    chatSocket.onmessage = function (e) {
+        const data = JSON.parse(e.data);
+
+        if (data.type === 'chat_message') {
+            handleChatMessage(data);
+        } else if (data.type === 'typing') {
+            handleTyping(data);
+        } else if (data.type === 'read_receipt') {
+            handleReadReceipt(data);
+        } else {
+            // Fallback for old message format if any
+            if (data.message) handleChatMessage(data);
+        }
+    };
+
+    function handleChatMessage(data) {
+        const message = data.message;
+        const sender = data.username;
+        const msgId = data.id;
+
+        const chatLog = document.querySelector('#chat-log');
+        const messageElement = document.createElement('div');
+
+        const isMe = sender === username;
+        messageElement.classList.add('message', isMe ? 'sent' : 'received');
+        if (msgId) messageElement.id = `msg-${msgId}`;
+
+        messageElement.innerHTML = `
+            <div class="meta">
+                <span>${isMe ? 'You' : sender}</span>
+                ${isMe ? '<span class="read-status"></span>' : ''}
+            </div>
+            ${message}
+        `;
+
+        chatLog.appendChild(messageElement);
+        chatLog.scrollTop = chatLog.scrollHeight;
+
+        // If I received a message (not from me), send read receipt
+        if (!isMe && document.hasFocus()) {
+            sendReadReceipt(msgId);
+        }
+    }
+
+    function handleTyping(data) {
+        const typingIndicator = document.getElementById('typing-indicator');
+        if (data.username !== username && data.is_typing) {
+            typingIndicator.textContent = `${data.username} is typing...`;
+        } else if (data.username !== username && !data.is_typing) {
+            typingIndicator.textContent = '';
+        }
+    }
+
+    function handleReadReceipt(data) {
+        // Find the message and mark as read
+        const msgEl = document.getElementById(`msg-${data.message_id}`);
+        if (msgEl && msgEl.classList.contains('sent')) {
+            const statusSpan = msgEl.querySelector('.read-status');
+            if (statusSpan) statusSpan.textContent = 'Read';
+        }
+    }
+
+    function sendReadReceipt(msgId) {
+        if (!msgId) return;
+        chatSocket.send(JSON.stringify({
+            'type': 'read_receipt',
+            'message_id': msgId,
+            'username': username
+        }));
+    }
+
+    chatSocket.onclose = function (e) {
+        console.error('Chat socket closed unexpectedly');
+    };
+
+    const messageInput = document.querySelector('#chat-message-input');
+
+    // Typing indicator logic
+    let typingTimeout;
+    messageInput.addEventListener('input', () => {
+        chatSocket.send(JSON.stringify({
+            'type': 'typing',
+            'is_typing': true,
+            'username': username
+        }));
+
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            chatSocket.send(JSON.stringify({
+                'type': 'typing',
+                'is_typing': false,
+                'username': username
+            }));
+        }, 2000);
+    });
+
+    messageInput.focus();
+    messageInput.onkeyup = function (e) {
+        if (e.key === 'Enter') {
+            document.querySelector('#chat-message-submit').click();
+        }
+    };
+
+    document.querySelector('#chat-message-submit').onclick = function (e) {
+        const message = messageInput.value;
+        if (message.trim()) {
+            chatSocket.send(JSON.stringify({
+                'type': 'chat_message',
+                'message': message,
+                'username': username
+            }));
+            messageInput.value = '';
+
+            // Clear typing immediately
+            clearTimeout(typingTimeout);
+            chatSocket.send(JSON.stringify({
+                'type': 'typing',
+                'is_typing': false,
+                'username': username
+            }));
+        }
+    };
+
+    // Scroll to bottom on load
+    const chatLog = document.querySelector('#chat-log');
+    chatLog.scrollTop = chatLog.scrollHeight;
+
+    // Send read receipts for existing unread messages on load/focus?
+    // For simplicity, we'll just handle new messages or when clicking the window
+    window.addEventListener('focus', () => {
+        // Ideally we'd check for unread messages here
+    });
+</script>
+{% endblock %}
