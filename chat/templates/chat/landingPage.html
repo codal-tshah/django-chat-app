@@ -71,5 +71,34 @@
             joinRoom();
         }
     });
+
+    // Real-time notifications
+    const lobbySocket = new WebSocket('ws://' + window.location.host + '/ws/chat/lobby/');
+
+    lobbySocket.onmessage = function (e) {
+        const data = JSON.parse(e.data);
+        if (data.type === 'notification') {
+            // Check if the notification is for me
+            if (data.target_user === "{{ user.username }}") {
+                // Update the unread badge for the sender
+                const sender = data.sender;
+                const userLinks = document.querySelectorAll('a[href*="/chat/private/' + sender + '"]');
+
+                userLinks.forEach(link => {
+                    let badge = link.querySelector('.badge');
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'badge';
+                        badge.style.cssText = 'margin-left: auto; background: #25d366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;';
+                        link.appendChild(badge);
+                        badge.textContent = 0;
+                    }
+                    // Increment count
+                    let count = parseInt(badge.textContent);
+                    badge.textContent = count + 1;
+                });
+            }
+        }
+    };
 </script>
 {% endblock %}

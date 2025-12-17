@@ -148,7 +148,30 @@ We have enhanced the application with the following features:
 - **Notifications**:
   - **Unread Counts**: The lobby displays a green badge with the count of unread messages for each private chat.
 
-8. Future Improvements
+8. Key Functions & Logic
+------------------------
+
+### 8.1. Consumer Functions (`chat/consumers.py`)
+- **`connect()`**: Handles new WebSocket connections.
+  - Joins the appropriate channel group (room or lobby).
+  - Triggers `mark_room_read` to update read status for the user.
+  - Broadcasts `bulk_read` event if messages were marked as read.
+- **`receive(text_data)`**: Main handler for incoming WebSocket messages.
+  - **`chat_message`**: Saves message to DB and broadcasts to room. Triggers lobby notification for private chats.
+  - **`typing`**: Broadcasts typing status to room.
+  - **`read_receipt`**: Marks specific message as read and broadcasts update.
+- **`save_message(username, room_name, message)`**: Async wrapper for DB creation. Adds sender to `read_by` immediately.
+- **`mark_room_read(room_name, user)`**: Bulk updates all unread messages in a room for the user. Returns list of updated IDs.
+- **`notification(event)`**: Sends real-time unread count updates to the lobby.
+
+### 8.2. View Functions (`chat/views.py`)
+- **`chatPage` (Lobby)**:
+  - Calculates `unread_count` for each user by filtering messages in private rooms not read by the current user.
+- **`privateRoomPage`**:
+  - Generates a consistent room name (`private_userA_userB`) by sorting usernames.
+  - Ensures both users are added to the `ChatRoom` participants.
+
+9. Future Improvements
 ----------------------
 - **Dockerization**: Containerize the application for easy deployment.
 - **File Sharing**: Support for images and documents.

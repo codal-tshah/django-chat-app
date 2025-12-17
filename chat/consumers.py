@@ -6,7 +6,12 @@ from django.contrib.auth.models import User
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        if 'room_name' in self.scope['url_route']['kwargs']:
+            self.room_name = self.scope['url_route']['kwargs']['room_name']
+        else:
+            # Fallback for lobby or other routes without room_name
+            self.room_name = "lobby"
+            
         self.room_group_name = f"chat_{self.room_name}"
 
         # Join room group
@@ -58,6 +63,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "id": msg_id
                 }
             )
+            
+            # If this is a private chat, send notification to the lobby
+            if "private" in self.room_name:
+                # Extract the other user's name from the room name (e.g., private_user1_user2)
+                parts = self.room_name.split('_')
+                if len(parts) >= 3:
+                    # parts[0] is 'private', parts[1] and parts[2] are usernames
+                    target_user = parts[2] if parts[1] == username else parts[1]
+                    
+                    await self.channel_layer.group_send(
+                        "chat_lobby",
+                        {
+                            "type": "notification",
+                            "sender": username,
+                            "target_user": target_user
+                        }
+                    )
         elif msg_type == "typing":
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -124,12 +146,23 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "username": username
         }))
 
+    async def notification(self, event):
+        sender = event["sender"]
+        target_user = event["target_user"]
+
+        await self.send(text_data=json.dumps({
+            "type": "notification",
+            "sender": sender,
+            "target_user": target_user
+        }))
+
     @database_sync_to_async
     def save_message(self, username, room_name, message_content):
         try:
             user = User.objects.get(username=username)
             room = ChatRoom.objects.get(name=room_name)
             msg = Message.objects.create(sender=user, room=room, content=message_content)
+            msg.read_by.add(user) # Sender has read their own message
             return msg.id
         except Exception as e:
             print(f"Error saving message: {e}")
@@ -149,7 +182,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         read_msg_ids = []
         try:
             room = ChatRoom.objects.get(name=room_name)
-            messages = Message.objects.filter(room=room).exclude(read_by=user)
+            messages = Message.objects.filter(room=room).exclude(read_by=user).exclude(sender=user)
             for msg in messages:
                 msg.read_by.add(user)
                 read_msg_ids.append(msg.id)

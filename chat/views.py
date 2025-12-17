@@ -34,11 +34,11 @@ def chatPage(request):
         sorted_users = sorted([request.user.username, user.username])
         room_name = f"private_{sorted_users[0]}_{sorted_users[1]}"
         
-        # Count messages in this room not read by current user
+        # Count messages in this room not read by current user AND not sent by current user
         unread_count = Message.objects.filter(
             room__name=room_name,
             room__type="private"
-        ).exclude(read_by=request.user).count()
+        ).exclude(read_by=request.user).exclude(sender=request.user).count()
         
         user.unread_count = unread_count
 

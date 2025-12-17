@@ -210,6 +210,10 @@ Chat with {{ other_user.username }}
             handleReadReceipt(data);
         } else if (data.type === 'bulk_read') {
             handleBulkRead(data);
+        } else if (data.type === 'unread_count_update') {
+            // This would be handled if we were on the lobby page, 
+            // but since we are on the chat page, we might not need it 
+            // unless we have a sidebar.
         } else {
             // Fallback for old message format if any
             if (data.message) handleChatMessage(data);
