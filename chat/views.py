@@ -42,6 +42,13 @@ def chatPage(request):
         
         user.unread_count = unread_count
 
+    # Calculate unread counts for public rooms
+    for room in public_rooms:
+        unread_count = Message.objects.filter(
+            room=room
+        ).exclude(read_by=request.user).exclude(sender=request.user).count()
+        room.unread_count = unread_count
+
     return render(request, "chat/landingPage.html", {
         "public_rooms": public_rooms,
         "users": users

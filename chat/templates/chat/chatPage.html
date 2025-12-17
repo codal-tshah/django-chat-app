@@ -160,7 +160,7 @@ Chat with {{ other_user.username }}
                 <div class="message-info">
                     <span class="time">{{ message.timestamp|date:"H:i" }}</span>
                     {% if message.sender == current_user %}
-                    {% if message.read_by.exists %}
+                    {% if message.read_by.count > 1 %}
                     <span class="read-status read">✓✓</span>
                     {% else %}
                     <span class="read-status">✓</span>

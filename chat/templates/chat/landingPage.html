@@ -22,6 +22,12 @@
                     <span
                         style="background: #e9edef; padding: 8px; border-radius: 50%; margin-right: 10px; color: #54656f;">#</span>
                     {{ room.name }}
+                    {% if room.unread_count > 0 %}
+                    <span
+                        style="margin-left: auto; background: #25d366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                        {{ room.unread_count }}
+                    </span>
+                    {% endif %}
                 </a>
             </li>
             {% empty %}
@@ -78,27 +84,40 @@
     lobbySocket.onmessage = function (e) {
         const data = JSON.parse(e.data);
         if (data.type === 'notification') {
-            // Check if the notification is for me
-            if (data.target_user === "{{ user.username }}") {
-                // Update the unread badge for the sender
-                const sender = data.sender;
-                const userLinks = document.querySelectorAll('a[href*="/chat/private/' + sender + '"]');
+            const currentUser = "{{ user.username }}";
 
-                userLinks.forEach(link => {
-                    let badge = link.querySelector('.badge');
-                    if (!badge) {
-                        badge = document.createElement('span');
-                        badge.className = 'badge';
-                        badge.style.cssText = 'margin-left: auto; background: #25d366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;';
-                        link.appendChild(badge);
-                        badge.textContent = 0;
-                    }
-                    // Increment count
-                    let count = parseInt(badge.textContent);
-                    badge.textContent = count + 1;
-                });
+            // Don't notify if I sent the message
+            if (data.sender === currentUser) return;
+
+            if (data.room_type === 'private') {
+                // Check if the notification is for me
+                if (data.target_user === currentUser) {
+                    const sender = data.sender;
+                    updateBadge(`a[href*="/chat/private/${sender}"]`);
+                }
+            } else if (data.room_type === 'group') {
+                // For group chats, everyone in the lobby gets notified
+                const roomName = data.room_name;
+                updateBadge(`a[href*="/chat/group/${roomName}"]`);
             }
         }
     };
+
+    function updateBadge(selector) {
+        const links = document.querySelectorAll(selector);
+        links.forEach(link => {
+            let badge = link.querySelector('.badge');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'badge';
+                badge.style.cssText = 'margin-left: auto; background: #25d366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;';
+                link.appendChild(badge);
+                badge.textContent = 0;
+            }
+            // Increment count
+            let count = parseInt(badge.textContent);
+            badge.textContent = count + 1;
+        });
+    }
 </script>
 {% endblock %}

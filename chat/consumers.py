@@ -64,22 +64,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 }
             )
             
-            # If this is a private chat, send notification to the lobby
+            # Send notification to the lobby
+            notification_data = {
+                "type": "notification",
+                "sender": username,
+            }
+            
             if "private" in self.room_name:
-                # Extract the other user's name from the room name (e.g., private_user1_user2)
+                # Private Chat Logic
                 parts = self.room_name.split('_')
                 if len(parts) >= 3:
-                    # parts[0] is 'private', parts[1] and parts[2] are usernames
                     target_user = parts[2] if parts[1] == username else parts[1]
-                    
-                    await self.channel_layer.group_send(
-                        "chat_lobby",
-                        {
-                            "type": "notification",
-                            "sender": username,
-                            "target_user": target_user
-                        }
-                    )
+                    notification_data["target_user"] = target_user
+                    notification_data["room_type"] = "private"
+            else:
+                # Group Chat Logic
+                notification_data["room_name"] = self.room_name
+                notification_data["room_type"] = "group"
+
+            await self.channel_layer.group_send("chat_lobby", notification_data)
         elif msg_type == "typing":
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -147,14 +150,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }))
 
     async def notification(self, event):
-        sender = event["sender"]
-        target_user = event["target_user"]
-
-        await self.send(text_data=json.dumps({
-            "type": "notification",
-            "sender": sender,
-            "target_user": target_user
-        }))
+        # Forward the entire event data to the WebSocket
+        # Remove the 'type' key from event if it conflicts or just pass it along
+        await self.send(text_data=json.dumps(event))
 
     @database_sync_to_async
     def save_message(self, username, room_name, message_content):
