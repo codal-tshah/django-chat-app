@@ -1,7 +1,369 @@
 Django Chat App Implementation Documentation
 ==========================================
 
-1. Project Overview
+TABLE OF CONTENTS
+-----------------
+1. Architecture Overview
+2. Data Models & Relationships
+3. Complete Chat Flow Diagrams
+4. Project Overview
+5. Technology Stack
+6. Key Concepts & Architecture
+7. Implementation Details
+8. Key Functions & Logic
+9. Future Improvements
+
+==========================================
+1. ARCHITECTURE OVERVIEW
+==========================================
+
+1.1. High-Level System Architecture
+------------------------------------
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                         CLIENT LAYER (Browser)                       │
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
+│  │ Login Page   │  │ Lobby Page   │  │  Chat Page   │              │
+│  │ (HTML/CSS/JS)│  │ (HTML/CSS/JS)│  │ (HTML/CSS/JS)│              │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘              │
+│         │                  │                  │                       │
+│         │ HTTP             │ HTTP + WebSocket │ WebSocket            │
+└─────────┼──────────────────┼──────────────────┼───────────────────────┘
+          │                  │                  │
+          ▼                  ▼                  ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      DJANGO APPLICATION LAYER                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌────────────────────────────────────────────────────────────┐     │
+│  │                    ASGI SERVER (Daphne)                     │     │
+│  │  ┌──────────────────────┐  ┌──────────────────────────┐   │    │
+│  │  │   HTTP Handler       │  │   WebSocket Handler      │   │    │
+│  │  │  (Django Views)      │  │   (Django Channels)      │   │    │
+│  │  └──────────┬───────────┘  └──────────┬───────────────┘   │    │
+│  └─────────────┼────────────────────────┼─────────────────────┘    │
+│                │                        │                            │
+│                ▼                        ▼                            │
+│  ┌─────────────────────┐    ┌──────────────────────────┐           │
+│  │   Views Layer       │    │   Consumers Layer        │           │
+│  │  - loginPage()      │    │  - ChatConsumer          │           │
+│  │  - chatPage()       │    │    * connect()           │           │
+│  │  - groupRoomPage()  │    │    * receive()           │           │
+│  │  - privateRoomPage()│    │    * disconnect()        │           │
+│  └─────────┬───────────┘    └──────────┬───────────────┘           │
+│            │                           │                             │
+│            │         ┌─────────────────┴─────────────┐              │
+│            │         │                               │              │
+│            ▼         ▼                               ▼              │
+│  ┌─────────────────────────────────────────────────────────┐       │
+│  │              CHANNEL LAYER (Redis)                       │       │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │       │
+│  │  │ chat_lobby   │  │ chat_room1   │  │ chat_private │  │       │
+│  │  │   (Group)    │  │   (Group)    │  │   (Group)    │  │       │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘  │       │
+│  └─────────────────────────────────────────────────────────┘       │
+│            │                                                         │
+│            ▼                                                         │
+│  ┌─────────────────────────────────────────────────────────┐       │
+│  │              DATABASE LAYER (SQLite)                     │       │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │       │
+│  │  │   User   │  │ ChatRoom │  │ Message  │              │       │
+│  │  └──────────┘  └──────────┘  └──────────┘              │       │
+│  └─────────────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────────────┘
+
+1.2. Component Interaction Flow
+--------------------------------
+
+HTTP Request Flow (Page Load):
+  Browser → Django Views → Database → Template Rendering → Browser
+
+WebSocket Flow (Real-time Messaging):
+  Browser → ChatConsumer → Channel Layer → All Connected Consumers → Browsers
+
+==========================================
+2. DATA MODELS & RELATIONSHIPS
+==========================================
+
+2.1. Entity Relationship Diagram
+---------------------------------
+
+┌─────────────────────────────────────────────────────────────────┐
+│                          User (Django Auth)                      │
+├─────────────────────────────────────────────────────────────────┤
+│ • id (PK)                                                        │
+│ • username                                                       │
+│ • password (not used - passwordless auth)                       │
+└──────────────┬──────────────────────────────┬───────────────────┘
+               │                              │
+               │ participants (M2M)           │ sender (FK)
+               │                              │
+               ▼                              ▼
+┌──────────────────────────────┐    ┌────────────────────────────┐
+│        ChatRoom              │    │         Message            │
+├──────────────────────────────┤    ├────────────────────────────┤
+│ • id (PK)                    │◄───│ • id (PK)                  │
+│ • name (unique)              │    │ • content                  │
+│ • type (private/group)       │    │ • timestamp                │
+│ • participants (M2M → User)  │    │ • sender (FK → User)       │
+└──────────────────────────────┘    │ • room (FK → ChatRoom)     │
+                                    │ • read_by (M2M → User)     │
+                                    └────────────────────────────┘
+
+2.2. Model Details
+------------------
+
+ChatRoom Model:
+  - name: Unique identifier (e.g., "general", "private_alice_bob")
+  - type: "group" or "private"
+  - participants: Many-to-Many relationship with User
+  
+Message Model:
+  - sender: Foreign Key to User (who sent the message)
+  - room: Foreign Key to ChatRoom (where message was sent)
+  - content: Text content of the message
+  - timestamp: Auto-generated creation time
+  - read_by: Many-to-Many with User (tracks who has read the message)
+
+==========================================
+3. COMPLETE CHAT FLOW DIAGRAMS
+==========================================
+
+3.1. User Authentication Flow
+------------------------------
+
+┌─────────┐
+│ Browser │
+└────┬────┘
+     │
+     │ 1. GET /login/
+     ▼
+┌──────────────┐
+│ loginPage()  │
+│   (View)     │
+└────┬─────────┘
+     │
+     │ 2. Render LoginPage.html
+     ▼
+┌─────────┐
+│ Browser │ 3. User enters username
+└────┬────┘
+     │
+     │ 4. POST /login/ {username}
+     ▼
+┌──────────────┐
+│ loginPage()  │ 5. User.objects.get_or_create(username)
+│   (View)     │ 6. login(request, user)
+└────┬─────────┘
+     │
+     │ 7. redirect("chatPage")
+     ▼
+┌─────────┐
+│ Lobby   │
+└─────────┘
+
+3.2. Lobby Page Flow (Unread Counts)
+-------------------------------------
+
+┌─────────┐
+│ Browser │
+└────┬────┘
+     │
+     │ 1. GET /
+     ▼
+┌──────────────────────────────────────────────────────────┐
+│ chatPage() View                                          │
+│                                                           │
+│ 2. Fetch public_rooms = ChatRoom.objects.filter(         │
+│                         type="group")                    │
+│                                                           │
+│ 3. Fetch users = User.objects.exclude(id=current_user)   │
+│                                                           │
+│ 4. For each user:                                        │
+│    - Calculate unread_count for private chat             │
+│    - Query: Message.objects.filter(room=private_room)    │
+│              .exclude(read_by=current_user)              │
+│              .exclude(sender=current_user).count()       │
+│                                                           │
+│ 5. For each room:                                        │
+│    - Calculate unread_count for group chat               │
+│    - Query: Message.objects.filter(room=room)            │
+│              .exclude(read_by=current_user)              │
+│              .exclude(sender=current_user).count()       │
+└────┬─────────────────────────────────────────────────────┘
+     │
+     │ 6. Render landingPage.html with data
+     ▼
+┌──────────────────────────────────────────────────────────┐
+│ Browser (Lobby Page)                                     │
+│                                                           │
+│ 7. Establish WebSocket: ws://host/ws/chat/lobby/         │
+│                                                           │
+│ 8. Listen for 'notification' events:                     │
+│    - If room_type == 'private' && target_user == me:     │
+│      → Update badge for sender                           │
+│    - If room_type == 'group':                            │
+│      → Update badge for room_name                        │
+└───────────────────────────────────────────────────────────┘
+
+3.3. Sending a Message Flow (Complete)
+---------------------------------------
+
+┌─────────────────────────────────────────────────────────────────┐
+│                    BROWSER (Chat Page)                          │
+└────┬────────────────────────────────────────────────────────────┘
+     │
+     │ 1. User types message and clicks Send
+     │
+     │ 2. JavaScript: chatSocket.send(JSON.stringify({
+     │                  type: 'chat_message',
+     │                  message: 'Hello',
+     │                  username: 'alice'
+     │                }))
+     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              ChatConsumer.receive() [ASYNC]                     │
+├─────────────────────────────────────────────────────────────────┤
+│ 3. Parse incoming JSON data                                     │
+│                                                                  │
+│ 4. Call save_message(username, room_name, message)              │
+│    ┌──────────────────────────────────────────────────┐        │
+│    │ @database_sync_to_async                          │        │
+│    │ - Get User object                                │        │
+│    │ - Get or Create ChatRoom                         │        │
+│    │ - Create Message object                          │        │
+│    │ - Add sender to message.read_by (self-read)      │        │
+│    │ - Return message.id                              │        │
+│    └──────────────────────────────────────────────────┘        │
+│                                                                  │
+│ 5. Broadcast to room group:                                     │
+│    channel_layer.group_send(                                    │
+│      "chat_roomname",                                           │
+│      {                                                          │
+│        type: "chat_message",                                    │
+│        message: "Hello",                                        │
+│        username: "alice",                                       │
+│        id: 123                                                  │
+│      }                                                          │
+│    )                                                            │
+│                                                                  │
+│ 6. Send notification to lobby:                                  │
+│    channel_layer.group_send(                                    │
+│      "chat_lobby",                                              │
+│      {                                                          │
+│        type: "notification",                                    │
+│        sender: "alice",                                         │
+│        target_user: "bob" (if private)                          │
+│        room_name: "general" (if group)                          │
+│        room_type: "private" or "group"                          │
+│      }                                                          │
+│    )                                                            │
+└────┬────────────────────────────────────────────────────────────┘
+     │
+     ├─────────────────────────────────────────────────────────────┐
+     │                                                              │
+     ▼                                                              ▼
+┌─────────────────────────────────┐    ┌──────────────────────────────┐
+│ ChatConsumer.chat_message()     │    │ ChatConsumer.notification()  │
+│ (All users in chat room)        │    │ (All users in lobby)         │
+├─────────────────────────────────┤    ├──────────────────────────────┤
+│ 7. Send to WebSocket:           │    │ 8. Send to WebSocket:        │
+│    {                            │    │    {                         │
+│      type: "chat_message",      │    │      type: "notification",   │
+│      message: "Hello",          │    │      sender: "alice",        │
+│      username: "alice",         │    │      target_user: "bob"      │
+│      id: 123                    │    │    }                         │
+│    }                            │    │                              │
+└────┬────────────────────────────┘    └──────┬───────────────────────┘
+     │                                         │
+     ▼                                         ▼
+┌──────────────────────────────┐    ┌─────────────────────────────────┐
+│ BROWSER (Chat Page)          │    │ BROWSER (Lobby Page)            │
+├──────────────────────────────┤    ├─────────────────────────────────┤
+│ 9. handleChatMessage(data)   │    │ 10. Update unread badge         │
+│    - Create message element  │    │     - Find user/room link       │
+│    - Append to chat log      │    │     - Increment count           │
+│    - Show single tick ✓      │    │     - Display green badge       │
+│    - If not from me:         │    │                                 │
+│      → sendReadReceipt()     │    │                                 │
+└──────────────────────────────┘    └─────────────────────────────────┘
+
+3.4. Read Receipt Flow
+-----------------------
+
+┌──────────────────────────────────────────────────────────────────┐
+│                    BROWSER (Bob's Chat Page)                     │
+└────┬─────────────────────────────────────────────────────────────┘
+     │
+     │ 1. Bob opens chat with Alice
+     │
+     │ 2. WebSocket connects: ws://host/ws/chat/private/alice_bob/
+     ▼
+┌──────────────────────────────────────────────────────────────────┐
+│              ChatConsumer.connect() [ASYNC]                      │
+├──────────────────────────────────────────────────────────────────┤
+│ 3. Join room group: "chat_private_alice_bob"                     │
+│                                                                   │
+│ 4. Call mark_room_read(room_name, user)                          │
+│    ┌────────────────────────────────────────────────┐           │
+│    │ @database_sync_to_async                        │           │
+│    │ - Get ChatRoom                                 │           │
+│    │ - Get all messages NOT read by Bob             │           │
+│    │   AND NOT sent by Bob                          │           │
+│    │ - For each message:                            │           │
+│    │   * message.read_by.add(bob)                   │           │
+│    │   * Collect message IDs                        │           │
+│    │ - Return list of IDs [101, 102, 103]           │           │
+│    └────────────────────────────────────────────────┘           │
+│                                                                   │
+│ 5. If read_msg_ids not empty:                                    │
+│    Broadcast to room group:                                      │
+│    channel_layer.group_send(                                     │
+│      "chat_private_alice_bob",                                   │
+│      {                                                           │
+│        type: "bulk_read",                                        │
+│        message_ids: [101, 102, 103],                             │
+│        username: "bob"                                           │
+│      }                                                           │
+│    )                                                             │
+└────┬─────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ ChatConsumer.bulk_read() (All users in room)                    │
+├──────────────────────────────────────────────────────────────────┤
+│ 6. Send to WebSocket:                                            │
+│    {                                                             │
+│      type: "bulk_read",                                          │
+│      message_ids: [101, 102, 103],                               │
+│      username: "bob"                                             │
+│    }                                                             │
+└────┬─────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌──────────────────────────────────────────────────────────────────┐
+│              BROWSER (Alice's Chat Page)                         │
+├──────────────────────────────────────────────────────────────────┤
+│ 7. handleBulkRead(data)                                          │
+│    - For each message_id in [101, 102, 103]:                     │
+│      * Find message element by ID                                │
+│      * Update tick from ✓ to ✓✓                                 │
+│      * Change color to blue (#53bdeb)                            │
+└──────────────────────────────────────────────────────────────────┘
+
+3.5. Typing Indicator Flow
+---------------------------
+
+Browser (User typing) → WebSocket {type: "typing", is_typing: true}
+                      → ChatConsumer.receive()
+                      → channel_layer.group_send("user_typing")
+                      → ChatConsumer.user_typing()
+                      → All other browsers in room
+                      → Display "User is typing..."
+
+==========================================
+4. PROJECT OVERVIEW
 -------------------
 This document outlines the implementation of a real-time chat application using Django and Django Channels. The goal was to create a "spike" or proof-of-concept for a chat system that supports:
 - Real-time messaging (instant updates without page reloads).
