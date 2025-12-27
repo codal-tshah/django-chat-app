@@ -174,18 +174,18 @@ Message Model:
      ▼
 ┌──────────────────────────────────────────────────────────┐
 │ chatPage() View                                          │
-│                                                           │
+│                                                          │
 │ 2. Fetch public_rooms = ChatRoom.objects.filter(         │
 │                         type="group")                    │
-│                                                           │
+│                                                          │
 │ 3. Fetch users = User.objects.exclude(id=current_user)   │
-│                                                           │
+│                                                          │
 │ 4. For each user:                                        │
 │    - Calculate unread_count for private chat             │
 │    - Query: Message.objects.filter(room=private_room)    │
 │              .exclude(read_by=current_user)              │
 │              .exclude(sender=current_user).count()       │
-│                                                           │
+│                                                           
 │ 5. For each room:                                        │
 │    - Calculate unread_count for group chat               │
 │    - Query: Message.objects.filter(room=room)            │
@@ -197,15 +197,15 @@ Message Model:
      ▼
 ┌──────────────────────────────────────────────────────────┐
 │ Browser (Lobby Page)                                     │
-│                                                           │
+│                                                          │
 │ 7. Establish WebSocket: ws://host/ws/chat/lobby/         │
-│                                                           │
+│                                                          │
 │ 8. Listen for 'notification' events:                     │
 │    - If room_type == 'private' && target_user == me:     │
 │      → Update badge for sender                           │
 │    - If room_type == 'group':                            │
 │      → Update badge for room_name                        │
-└───────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────┘
 
 3.3. Sending a Message Flow (Complete)
 ---------------------------------------
@@ -226,7 +226,7 @@ Message Model:
 │              ChatConsumer.receive() [ASYNC]                     │
 ├─────────────────────────────────────────────────────────────────┤
 │ 3. Parse incoming JSON data                                     │
-│                                                                  │
+│                                                                 │
 │ 4. Call save_message(username, room_name, message)              │
 │    ┌──────────────────────────────────────────────────┐        │
 │    │ @database_sync_to_async                          │        │
@@ -236,7 +236,7 @@ Message Model:
 │    │ - Add sender to message.read_by (self-read)      │        │
 │    │ - Return message.id                              │        │
 │    └──────────────────────────────────────────────────┘        │
-│                                                                  │
+│                                                                 │
 │ 5. Broadcast to room group:                                     │
 │    channel_layer.group_send(                                    │
 │      "chat_roomname",                                           │
@@ -247,7 +247,7 @@ Message Model:
 │        id: 123                                                  │
 │      }                                                          │
 │    )                                                            │
-│                                                                  │
+│                                                                 │
 │ 6. Send notification to lobby:                                  │
 │    channel_layer.group_send(                                    │
 │      "chat_lobby",                                              │
@@ -262,8 +262,8 @@ Message Model:
 └────┬────────────────────────────────────────────────────────────┘
      │
      ├─────────────────────────────────────────────────────────────┐
-     │                                                              │
-     ▼                                                              ▼
+     │                                                             │
+     ▼                                                             ▼
 ┌─────────────────────────────────┐    ┌──────────────────────────────┐
 │ ChatConsumer.chat_message()     │    │ ChatConsumer.notification()  │
 │ (All users in chat room)        │    │ (All users in lobby)         │
@@ -276,8 +276,8 @@ Message Model:
 │      id: 123                    │    │    }                         │
 │    }                            │    │                              │
 └────┬────────────────────────────┘    └──────┬───────────────────────┘
-     │                                         │
-     ▼                                         ▼
+     │                                        │
+     ▼                                        ▼
 ┌──────────────────────────────┐    ┌─────────────────────────────────┐
 │ BROWSER (Chat Page)          │    │ BROWSER (Lobby Page)            │
 ├──────────────────────────────┤    ├─────────────────────────────────┤
@@ -304,7 +304,7 @@ Message Model:
 │              ChatConsumer.connect() [ASYNC]                      │
 ├──────────────────────────────────────────────────────────────────┤
 │ 3. Join room group: "chat_private_alice_bob"                     │
-│                                                                   │
+│                                                                  │
 │ 4. Call mark_room_read(room_name, user)                          │
 │    ┌────────────────────────────────────────────────┐           │
 │    │ @database_sync_to_async                        │           │
@@ -316,7 +316,7 @@ Message Model:
 │    │   * Collect message IDs                        │           │
 │    │ - Return list of IDs [101, 102, 103]           │           │
 │    └────────────────────────────────────────────────┘           │
-│                                                                   │
+│                                                                  │
 │ 5. If read_msg_ids not empty:                                    │
 │    Broadcast to room group:                                      │
 │    channel_layer.group_send(                                     │
@@ -331,7 +331,7 @@ Message Model:
      │
      ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│ ChatConsumer.bulk_read() (All users in room)                    │
+│ ChatConsumer.bulk_read() (All users in room)                     │
 ├──────────────────────────────────────────────────────────────────┤
 │ 6. Send to WebSocket:                                            │
 │    {                                                             │
@@ -348,7 +348,7 @@ Message Model:
 │ 7. handleBulkRead(data)                                          │
 │    - For each message_id in [101, 102, 103]:                     │
 │      * Find message element by ID                                │
-│      * Update tick from ✓ to ✓✓                                 │
+│      * Update tick from ✓ to ✓✓                                  │
 │      * Change color to blue (#53bdeb)                            │
 └──────────────────────────────────────────────────────────────────┘
 
