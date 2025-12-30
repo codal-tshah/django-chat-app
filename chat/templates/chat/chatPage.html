@@ -126,8 +126,15 @@ Chat with {{ other_user.username }}
             #{{ room_name }}
             {% endif %}
         </h2>
-        <a href="{% url 'chatPage' %}" class="btn btn-secondary"
-            style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">Leave Room</a>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                <span
+                    style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: green; margin-right: 5px;"></span>
+                <span id="connection-status" style="color: green;">Connected</span>
+            </div>
+            <a href="{% url 'chatPage' %}" class="btn btn-secondary"
+                style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">Leave Room</a>
+        </div>
     </div>
 
     <div class="chat-container">
@@ -190,6 +197,12 @@ Chat with {{ other_user.username }}
     const roomType = JSON.parse(document.getElementById('room-type').textContent);
     const username = JSON.parse(document.getElementById('user-username').textContent);
 
+    // Connection management variables
+    let messageQueue = [];
+    let isConnected = false;
+    let chatSocket = null;
+
+    // WebSocket URL
     let wsUrl;
     if (roomType === 'private') {
         wsUrl = 'ws://' + window.location.host + '/ws/chat/private/' + roomName + '/';
@@ -197,28 +210,75 @@ Chat with {{ other_user.username }}
         wsUrl = 'ws://' + window.location.host + '/ws/chat/group/' + roomName + '/';
     }
 
-    const chatSocket = new WebSocket(wsUrl);
+    // Initialize WebSocket connection
+    function initWebSocket() {
+        chatSocket = new WebSocket(wsUrl);
 
-    chatSocket.onmessage = function (e) {
-        const data = JSON.parse(e.data);
+        chatSocket.onopen = function (e) {
+            console.log('WebSocket connected');
+            isConnected = true;
 
-        if (data.type === 'chat_message') {
-            handleChatMessage(data);
-        } else if (data.type === 'typing') {
-            handleTyping(data);
-        } else if (data.type === 'read_receipt') {
-            handleReadReceipt(data);
-        } else if (data.type === 'bulk_read') {
-            handleBulkRead(data);
-        } else if (data.type === 'unread_count_update') {
-            // This would be handled if we were on the lobby page, 
-            // but since we are on the chat page, we might not need it 
-            // unless we have a sidebar.
-        } else {
-            // Fallback for old message format if any
-            if (data.message) handleChatMessage(data);
+            // Update connection status indicator
+            updateConnectionStatus('Connected', 'green');
+
+            // Send any queued messages
+            while (messageQueue.length > 0) {
+                const msg = messageQueue.shift();
+                chatSocket.send(JSON.stringify(msg));
+                console.log('Sent queued message:', msg);
+            }
+        };
+
+        chatSocket.onerror = function (e) {
+            console.error('WebSocket error:', e);
+            isConnected = false;
+            updateConnectionStatus('Error', 'red');
+        };
+
+        chatSocket.onclose = function (e) {
+            console.log('WebSocket closed:', e.code, e.reason);
+            isConnected = false;
+            updateConnectionStatus('Disconnected', 'orange');
+
+            // Attempt to reconnect after 3 seconds
+            setTimeout(() => {
+                console.log('Attempting to reconnect...');
+                updateConnectionStatus('Reconnecting...', 'orange');
+                initWebSocket();
+            }, 3000);
+        };
+
+        chatSocket.onmessage = function (e) {
+            const data = JSON.parse(e.data);
+
+            if (data.type === 'chat_message') {
+                handleChatMessage(data);
+            } else if (data.type === 'typing') {
+                handleTyping(data);
+            } else if (data.type === 'read_receipt') {
+                handleReadReceipt(data);
+            } else if (data.type === 'bulk_read') {
+                handleBulkRead(data);
+            } else if (data.type === 'unread_count_update') {
+                // This would be handled if we were on the lobby page
+            } else {
+                // Fallback for old message format if any
+                if (data.message) handleChatMessage(data);
+            }
+        };
+    }
+
+    // Initialize connection
+    initWebSocket();
+
+    // Connection status indicator
+    function updateConnectionStatus(status, color) {
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) {
+            statusEl.textContent = status;
+            statusEl.style.color = color;
         }
-    };
+    }
 
     function handleChatMessage(data) {
         const message = data.message;
@@ -290,35 +350,41 @@ Chat with {{ other_user.username }}
 
     function sendReadReceipt(msgId) {
         if (!msgId) return;
-        chatSocket.send(JSON.stringify({
+        const payload = {
             'type': 'read_receipt',
             'message_id': msgId,
             'username': username
-        }));
-    }
+        };
 
-    chatSocket.onclose = function (e) {
-        console.error('Chat socket closed unexpectedly');
-    };
+        if (isConnected) {
+            chatSocket.send(JSON.stringify(payload));
+        } else {
+            messageQueue.push(payload);
+        }
+    }
 
     const messageInput = document.querySelector('#chat-message-input');
 
     // Typing indicator logic
     let typingTimeout;
     messageInput.addEventListener('input', () => {
-        chatSocket.send(JSON.stringify({
-            'type': 'typing',
-            'is_typing': true,
-            'username': username
-        }));
+        if (isConnected) {
+            chatSocket.send(JSON.stringify({
+                'type': 'typing',
+                'is_typing': true,
+                'username': username
+            }));
+        }
 
         clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
-            chatSocket.send(JSON.stringify({
-                'type': 'typing',
-                'is_typing': false,
-                'username': username
-            }));
+            if (isConnected) {
+                chatSocket.send(JSON.stringify({
+                    'type': 'typing',
+                    'is_typing': false,
+                    'username': username
+                }));
+            }
         }, 2000);
     });
 
@@ -332,20 +398,39 @@ Chat with {{ other_user.username }}
     document.querySelector('#chat-message-submit').onclick = function (e) {
         const message = messageInput.value;
         if (message.trim()) {
-            chatSocket.send(JSON.stringify({
+            const payload = {
                 'type': 'chat_message',
                 'message': message,
                 'username': username
-            }));
-            messageInput.value = '';
+            };
+
+            if (isConnected) {
+                chatSocket.send(JSON.stringify(payload));
+                messageInput.value = '';
+            } else {
+                // Queue message for retry
+                messageQueue.push(payload);
+                console.log('Message queued for retry');
+
+                // Show user feedback
+                const statusEl = document.getElementById('connection-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Queued (will send when reconnected)';
+                    statusEl.style.color = 'orange';
+                }
+
+                messageInput.value = '';
+            }
 
             // Clear typing immediately
             clearTimeout(typingTimeout);
-            chatSocket.send(JSON.stringify({
-                'type': 'typing',
-                'is_typing': false,
-                'username': username
-            }));
+            if (isConnected) {
+                chatSocket.send(JSON.stringify({
+                    'type': 'typing',
+                    'is_typing': false,
+                    'username': username
+                }));
+            }
         }
     };
 
