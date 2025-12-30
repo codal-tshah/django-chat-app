@@ -158,7 +158,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def save_message(self, username, room_name, message_content):
         try:
             user = User.objects.get(username=username)
-            room = ChatRoom.objects.get(name=room_name)
+            # Ensure room exists (e.g. if it's a new group chat)
+            # Determine type based on name convention or default to group
+            room_type = "private" if room_name.startswith("private_") else "group"
+            room, created = ChatRoom.objects.get_or_create(name=room_name, defaults={"type": room_type})
+            
             msg = Message.objects.create(sender=user, room=room, content=message_content)
             msg.read_by.add(user) # Sender has read their own message
             return msg.id
@@ -179,11 +183,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def mark_room_read(self, room_name, user):
         read_msg_ids = []
         try:
+            # If it's the lobby, we don't have a room to mark read
+            if room_name == "lobby":
+                return []
+                
             room = ChatRoom.objects.get(name=room_name)
             messages = Message.objects.filter(room=room).exclude(read_by=user).exclude(sender=user)
             for msg in messages:
                 msg.read_by.add(user)
                 read_msg_ids.append(msg.id)
+        except ChatRoom.DoesNotExist:
+            # Room might not exist yet if it's a new group chat being joined via URL
+            # In that case, there are no messages to mark read anyway.
+            pass
         except Exception as e:
             print(f"Error marking room read: {e}")
         return read_msg_ids
