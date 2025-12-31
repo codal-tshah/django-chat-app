@@ -132,8 +132,14 @@ Chat with {{ other_user.username }}
                     style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: green; margin-right: 5px;"></span>
                 <span id="connection-status" style="color: green;">Connected</span>
             </div>
-            <a href="{% url 'chatPage' %}" class="btn btn-secondary"
-                style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">Leave Room</a>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="enable-notifications" class="btn btn-secondary"
+                    style="display: none; padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: #53bdeb; border-color: #53bdeb; color: white;">
+                    🔔 Enable Notifications
+                </button>
+                <a href="{% url 'chatPage' %}" class="btn btn-secondary"
+                    style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">Leave Room</a>
+            </div>
         </div>
     </div>
 
@@ -204,6 +210,50 @@ Chat with {{ other_user.username }}
     let reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 5;
     const RECONNECT_DELAY = 3000; // 3 seconds
+
+    // Notification variables
+    let originalTitle = document.title;
+    let unreadCount = 0;
+
+    const notificationBtn = document.getElementById('enable-notifications');
+
+    function checkNotificationPermission() {
+        if ('Notification' in window) {
+            if (Notification.permission === 'default') {
+                notificationBtn.style.display = 'block';
+            } else if (Notification.permission === 'granted') {
+                notificationBtn.style.display = 'none';
+            } else {
+                // Denied
+                notificationBtn.textContent = '🚫 Notifications Blocked';
+                notificationBtn.style.display = 'block';
+                notificationBtn.disabled = true;
+            }
+        }
+    }
+
+    if (notificationBtn) {
+        notificationBtn.onclick = function () {
+            Notification.requestPermission().then(permission => {
+                console.log("Notification permission result:", permission);
+                checkNotificationPermission();
+                if (permission === 'granted') {
+                    new Notification("Notifications Enabled!", {
+                        body: "You will now receive alerts for new messages.",
+                        icon: 'https://cdn-icons-png.flaticon.com/512/733/733585.png'
+                    });
+                }
+            });
+        };
+    }
+
+    // Initial check
+    checkNotificationPermission();
+
+    // Request notification permission on load (some browsers allow this, some don't)
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(checkNotificationPermission);
+    }
 
     // WebSocket URL
     let wsUrl;
@@ -306,6 +356,7 @@ Chat with {{ other_user.username }}
         const messageElement = document.createElement('div');
 
         const isMe = sender === username;
+        console.log(`Notification Debug: Received message from ${sender}. isMe: ${isMe}`);
         messageElement.classList.add('message', isMe ? 'sent' : 'received');
         if (msgId) messageElement.id = `msg-${msgId}`;
 
@@ -328,6 +379,43 @@ Chat with {{ other_user.username }}
         // If I received a message (not from me), send read receipt
         if (!isMe) {
             sendReadReceipt(msgId);
+
+            // Handle notifications if window is not focused
+            if (!document.hasFocus()) {
+                console.log("Notification Debug: Window is NOT focused");
+                console.log("Notification Debug: Permission is", Notification.permission);
+
+                // 1. Desktop Notification
+                if ('Notification' in window) {
+                    if (Notification.permission === 'granted') {
+                        try {
+                            const notification = new Notification(`New message from ${sender}`, {
+                                body: message,
+                                icon: 'https://cdn-icons-png.flaticon.com/512/733/733585.png', // Reliable public icon
+                                tag: 'chat-notification'
+                            });
+                            console.log("Notification Debug: Notification sent successfully");
+
+                            notification.onclick = function () {
+                                window.focus();
+                                this.close();
+                            };
+                        } catch (err) {
+                            console.error("Notification Debug: Error creating notification:", err);
+                        }
+                    } else {
+                        console.warn("Notification Debug: Permission not granted. Status:", Notification.permission);
+                    }
+                } else {
+                    console.error("Notification Debug: Browser does not support Desktop Notifications");
+                }
+
+                // 2. Tab Title Notification
+                unreadCount++;
+                document.title = `(${unreadCount}) ${originalTitle}`;
+            } else {
+                console.log("Notification Debug: Window IS focused, skipping desktop notification");
+            }
         }
     }
 
@@ -458,7 +546,12 @@ Chat with {{ other_user.username }}
     // Send read receipts for existing unread messages on load/focus?
     // For simplicity, we'll just handle new messages or when clicking the window
     // Send read receipts for all messages when window is focused
+    // Send read receipts for all messages when window is focused
     window.addEventListener('focus', () => {
+        // Reset unread count and title
+        unreadCount = 0;
+        document.title = originalTitle;
+
         if (isConnected) {
             chatSocket.send(JSON.stringify({
                 'type': 'mark_read',

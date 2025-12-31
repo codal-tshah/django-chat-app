@@ -99,6 +99,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             notification_data = {
                 "type": "notification",
                 "sender": username,
+                "message": message,
             }
             
             if "private" in self.room_name:
