@@ -26,3 +26,7 @@ env/
 
 # Chat App Specific
 cookies.txt
+
+#ignored files
+TECHNICAL_FAQ.md
+TESTING_MULTIPLE_USERS.md
