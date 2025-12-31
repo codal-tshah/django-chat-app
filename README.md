@@ -6,10 +6,14 @@ Using Django channels prepare a basic chat app
 - **No Authentication Required**: Simply enter a username to join.
 - **Group Chats**: Create or join public rooms.
 - **Private Chats**: Direct messaging with other online users.
-- **Premium UI**: Dark mode design with responsive layout.
+- **Premium UI**: WhatsApp-inspired light theme with responsive layout.
+- **Message Grouping**: Messages grouped by date (Today, Yesterday, etc.).
+- **Timestamps**: Exact time displayed for every message.
 - **Message Persistence**: Chat history is saved.
 - **Typing Indicators**: See when other users are typing.
-- **Read Receipts**: See when your messages have been read.
+- **Read Receipts**:
+  - **Sent**: Single Tick (✓)
+  - **Read**: Blue Double Tick (✓✓)
 
 ## Setup
 

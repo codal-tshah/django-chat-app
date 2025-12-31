@@ -5,4 +5,5 @@ from chat.consumers import ChatConsumer
 websocket_urlpatterns = [
     path("ws/chat/private/<str:room_name>/", ChatConsumer.as_asgi(), name="private_chat"),
     path("ws/chat/group/<str:room_name>/", ChatConsumer.as_asgi(), name="group_chat"),
+    path("ws/chat/lobby/", ChatConsumer.as_asgi(), name="lobby"), # Re-using ChatConsumer for simplicity, but treating 'lobby' as a room
 ]

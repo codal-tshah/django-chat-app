@@ -6,7 +6,12 @@ from django.contrib.auth.models import User
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        if 'room_name' in self.scope['url_route']['kwargs']:
+            self.room_name = self.scope['url_route']['kwargs']['room_name']
+        else:
+            # Fallback for lobby or other routes without room_name
+            self.room_name = "lobby"
+            
         self.room_group_name = f"chat_{self.room_name}"
 
         # Join room group
@@ -14,6 +19,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.room_group_name,
             self.channel_name
         )
+
+        # Mark all messages in this room as read by this user
+        read_msg_ids = await self.mark_room_read(self.room_name, self.scope["user"])
+        
+        if read_msg_ids:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "bulk_read",
+                    "message_ids": read_msg_ids,
+                    "username": self.scope["user"].username
+                }
+            )
 
         await self.accept()
 
@@ -45,6 +63,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "id": msg_id
                 }
             )
+            
+            # Send notification to the lobby
+            notification_data = {
+                "type": "notification",
+                "sender": username,
+            }
+            
+            if "private" in self.room_name:
+                # Private Chat Logic
+                parts = self.room_name.split('_')
+                if len(parts) >= 3:
+                    target_user = parts[2] if parts[1] == username else parts[1]
+                    notification_data["target_user"] = target_user
+                    notification_data["room_type"] = "private"
+            else:
+                # Group Chat Logic
+                notification_data["room_name"] = self.room_name
+                notification_data["room_type"] = "group"
+
+            await self.channel_layer.group_send("chat_lobby", notification_data)
         elif msg_type == "typing":
             await self.channel_layer.group_send(
                 self.room_group_name,
@@ -101,12 +139,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
             "username": username
         }))
 
+    async def bulk_read(self, event):
+        message_ids = event["message_ids"]
+        username = event["username"]
+
+        await self.send(text_data=json.dumps({
+            "type": "bulk_read",
+            "message_ids": message_ids,
+            "username": username
+        }))
+
+    async def notification(self, event):
+        # Forward the entire event data to the WebSocket
+        # Remove the 'type' key from event if it conflicts or just pass it along
+        await self.send(text_data=json.dumps(event))
+
     @database_sync_to_async
     def save_message(self, username, room_name, message_content):
         try:
             user = User.objects.get(username=username)
-            room = ChatRoom.objects.get(name=room_name)
+            # Ensure room exists (e.g. if it's a new group chat)
+            # Determine type based on name convention or default to group
+            room_type = "private" if room_name.startswith("private_") else "group"
+            room, created = ChatRoom.objects.get_or_create(name=room_name, defaults={"type": room_type})
+            
             msg = Message.objects.create(sender=user, room=room, content=message_content)
+            msg.read_by.add(user) # Sender has read their own message
             return msg.id
         except Exception as e:
             print(f"Error saving message: {e}")
@@ -120,3 +178,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message.read_by.add(user)
         except Exception as e:
             print(f"Error marking message read: {e}")
+
+    @database_sync_to_async
+    def mark_room_read(self, room_name, user):
+        read_msg_ids = []
+        try:
+            # If it's the lobby, we don't have a room to mark read
+            if room_name == "lobby":
+                return []
+                
+            room = ChatRoom.objects.get(name=room_name)
+            messages = Message.objects.filter(room=room).exclude(read_by=user).exclude(sender=user)
+            for msg in messages:
+                msg.read_by.add(user)
+                read_msg_ids.append(msg.id)
+        except ChatRoom.DoesNotExist:
+            # Room might not exist yet if it's a new group chat being joined via URL
+            # In that case, there are no messages to mark read anyway.
+            pass
+        except Exception as e:
+            print(f"Error marking room read: {e}")
+        return read_msg_ids

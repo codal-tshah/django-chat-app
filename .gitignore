@@ -1,4 +1,8 @@
 .venv
 cookies.txt
 db.sqlite3
-implementation_docs.txt
+__pycache__/
+*.py[cod]
+*/migrations/*.py
+!*/migrations/__init__.pyache__
+chat/migrations
