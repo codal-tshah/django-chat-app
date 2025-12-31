@@ -3,44 +3,75 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import ChatRoom, Message
 from django.contrib.auth.models import User
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ChatConsumer(AsyncWebsocketConsumer):
+    active_connections = 0
+    
     async def connect(self):
-        if 'room_name' in self.scope['url_route']['kwargs']:
-            self.room_name = self.scope['url_route']['kwargs']['room_name']
-        else:
-            # Fallback for lobby or other routes without room_name
-            self.room_name = "lobby"
-            
-        self.room_group_name = f"chat_{self.room_name}"
+        try:
+            if 'room_name' in self.scope['url_route']['kwargs']:
+                self.room_name = self.scope['url_route']['kwargs']['room_name']
+            else:
+                # Fallback for lobby or other routes without room_name
+                self.room_name = "lobby"
+                
+            self.room_group_name = f"chat_{self.room_name}"
 
-        # Join room group
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
-
-        # Mark all messages in this room as read by this user
-        read_msg_ids = await self.mark_room_read(self.room_name, self.scope["user"])
-        
-        if read_msg_ids:
-            await self.channel_layer.group_send(
+            # Join room group
+            await self.channel_layer.group_add(
                 self.room_group_name,
-                {
-                    "type": "bulk_read",
-                    "message_ids": read_msg_ids,
-                    "username": self.scope["user"].username
-                }
+                self.channel_name
             )
 
-        await self.accept()
+            # Mark all messages in this room as read by this user
+            read_msg_ids = await self.mark_room_read(self.room_name, self.scope["user"])
+            
+            if read_msg_ids:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "bulk_read",
+                        "message_ids": read_msg_ids,
+                        "username": self.scope["user"].username
+                    }
+                )
+
+            await self.accept()
+            
+            # Track active connections
+            ChatConsumer.active_connections += 1
+            logger.info(f"WebSocket CONNECTED: User={self.scope['user'].username}, Room={self.room_name}, Active connections: {ChatConsumer.active_connections}")
+        
+        except Exception as e:
+            # Log the error but don't show full stack trace for Redis connection issues
+            if "redis" in str(e).lower() or "connection" in str(e).lower():
+                logger.warning(f"Redis connection issue during WebSocket connect for user {self.scope['user'].username}: {type(e).__name__}")
+            else:
+                logger.error(f"Error in WebSocket connect: {e}")
+            # Close the connection gracefully
+            await self.close()
 
     async def disconnect(self, close_code):
-        # Leave room group
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
+        # Track active connections - only decrement if we actually connected
+        if hasattr(self, 'room_group_name') and hasattr(self, 'room_name'):
+            ChatConsumer.active_connections -= 1
+            logger.info(f"WebSocket DISCONNECTED: User={self.scope['user'].username}, Room={self.room_name}, Code={close_code}, Active connections: {ChatConsumer.active_connections}")
+            
+            # Leave room group
+            try:
+                await self.channel_layer.group_discard(
+                    self.room_group_name,
+                    self.channel_name
+                )
+            except Exception as e:
+                # Redis might be down, just log it
+                logger.debug(f"Could not leave group (Redis may be down): {e}")
+        else:
+            # Connection failed before setup completed
+            logger.debug(f"WebSocket disconnected before full setup, Code={close_code}")
 
     # Receive message from WebSocket
     async def receive(self, text_data):
@@ -68,6 +99,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             notification_data = {
                 "type": "notification",
                 "sender": username,
+                "message": message,
             }
             
             if "private" in self.room_name:
@@ -102,6 +134,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         "type": "message_read",
                         "message_id": msg_id,
                         "username": username
+                    }
+                )
+        elif msg_type == "mark_read":
+            # Mark all messages in the room as read by this user
+            read_msg_ids = await self.mark_room_read(self.room_name, self.scope["user"])
+            if read_msg_ids:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "bulk_read",
+                        "message_ids": read_msg_ids,
+                        "username": self.scope["user"].username
                     }
                 )
 

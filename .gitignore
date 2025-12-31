@@ -1,8 +1,32 @@
-.venv
-cookies.txt
-db.sqlite3
+# Python
 __pycache__/
 *.py[cod]
-*/migrations/*.py
-!*/migrations/__init__.pyache__
-chat/migrations
+*$py.class
+
+# Django
+db.sqlite3
+media/
+staticfiles/
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Redis
+*.rdb
+
+# Chat App Specific
+cookies.txt
+
+#ignored files
+TECHNICAL_FAQ.md
+TESTING_MULTIPLE_USERS.md

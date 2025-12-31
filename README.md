@@ -1,60 +1,83 @@
-# django-chat-app
-Using Django channels prepare a basic chat app
+# Django Real-Time Chat Application
 
-## Features
-- **Real-time Messaging**: Powered by Django Channels and WebSockets.
-- **No Authentication Required**: Simply enter a username to join.
-- **Group Chats**: Create or join public rooms.
-- **Private Chats**: Direct messaging with other online users.
-- **Premium UI**: WhatsApp-inspired light theme with responsive layout.
-- **Message Grouping**: Messages grouped by date (Today, Yesterday, etc.).
-- **Timestamps**: Exact time displayed for every message.
-- **Message Persistence**: Chat history is saved.
-- **Typing Indicators**: See when other users are typing.
-- **Read Receipts**:
+A high-performance, real-time chat application built with **Django 6.0**, **Django Channels**, and **Redis**. This project serves as a comprehensive "spike" to demonstrate scalable WebSocket architecture, robust notification systems, and premium UI/UX.
+
+## 🚀 Key Features
+
+### 💬 Messaging Experience
+- **Real-time Messaging**: Instant delivery powered by WebSockets and Redis.
+- **Group & Private Chats**: Support for public rooms and 1-on-1 direct messaging.
+- **Premium UI**: WhatsApp-inspired theme with a clean, responsive layout.
+- **Message Persistence**: Full chat history saved in SQLite.
+- **Message Grouping**: Smart grouping by date (Today, Yesterday, etc.).
+- **Typing Indicators**: Real-time "User is typing..." feedback.
+
+### 📊 Status & Read Receipts
+- **WhatsApp-style Ticks**:
   - **Sent**: Single Tick (✓)
   - **Read**: Blue Double Tick (✓✓)
+- **Bulk Read Sync**: Messages are automatically marked as read when you enter a room or focus the window.
 
-## Setup
+### 🔔 Advanced Notifications
+- **Lobby Badges**: Real-time unread count badges for every conversation in the lobby.
+- **Desktop Notifications**: Native browser alerts for new messages when the window is out of focus.
+- **Tab Title Notifications**: Dynamic unread counts in the browser tab (e.g., `(3) Chat Room`).
+- **Manual Permission Control**: Dedicated button to enable/request notification permissions.
+
+### 🛠 Reliability & Performance
+- **Robust Reconnection**: Automatic reconnection with exponential backoff and visual status indicators.
+- **Connection Monitoring**: Real-time tracking of active socket connections.
+- **Redis Error Handling**: Custom middleware to gracefully handle Redis downtime without crashing the app.
+- **Session Isolation**: Configured for multi-user testing in the same browser using unique session cookies.
+
+## 🛠 Technology Stack
+- **Backend**: Django 6.0, Django Channels 4.0
+- **Asynchronous Server**: Daphne (ASGI)
+- **Channel Layer**: Redis
+- **Database**: SQLite
+- **Frontend**: Vanilla JavaScript (ES6+), HTML5, CSS3
+
+## 📦 Setup & Installation
 
 ### Prerequisites
-- Python 3.8+
-- Redis (Required for Channel Layer)
+- Python 3.10+
+- Redis Server (Running on port 6379)
 
-### Installation
+### Installation Steps
 
-1. **Install Dependencies**:
+1. **Clone & Install Dependencies**:
    ```bash
-   pip install django channels daphne channels_redis
+   pip install -r requirements.txt
    ```
 
 2. **Start Redis**:
-   Ensure Redis is running on port 6379.
+   Ensure Redis is running. If using Docker:
    ```bash
-   # If using Docker
    docker run -p 6379:6379 -d redis:5
    ```
 
-3. **Run Migrations**:
+3. **Database Setup**:
    ```bash
    python manage.py migrate
    ```
 
-4. **Run Server**:
+4. **Run the Application**:
    ```bash
    python manage.py runserver
    ```
 
 5. **Access**:
-   Open [http://localhost:8000](http://localhost:8000) in your browser.
+   Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
 
-## Project Structure
-- `chat/`: Main app containing models, views, consumers, and templates.
-- `chat_app/`: Project configuration (ASGI, settings).
-- `templates/`: Base templates.
+## 📖 Documentation
+For in-depth technical details, diagrams, and architectural analysis, please refer to:
+- **`implementation_docs.txt`**: Complete technical breakdown in plain text.
+- **`Django_Chat_App_Spike_Documentation.docx`**: Executive summary and feature overview.
+- **`Django_Chat_App_Technical_Deep_Dive.docx`**: High-fidelity documentation with system diagrams and flowcharts.
 
-## Usage
-1. Enter a username on the login page.
-2. In the Lobby, verify "Public Rooms" or create a new one by typing a name and clicking "Join Room".
-3. To chat privately, click on a user's name in the "Online Users" list.
-4. Watch for "User is typing..." indicators and "Read" status on messages.
+## 🧪 Multi-User Testing
+To test real-time features between different users:
+1. Open the app in two different browsers (e.g., Chrome and Firefox).
+2. Or use a standard window and an Incognito/Private window.
+3. The app is configured with unique session cookies to prevent login conflicts during local testing.
+

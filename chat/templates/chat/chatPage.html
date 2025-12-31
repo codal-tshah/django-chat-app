@@ -126,8 +126,21 @@ Chat with {{ other_user.username }}
             #{{ room_name }}
             {% endif %}
         </h2>
-        <a href="{% url 'chatPage' %}" class="btn btn-secondary"
-            style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">Leave Room</a>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                <span
+                    style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: green; margin-right: 5px;"></span>
+                <span id="connection-status" style="color: green;">Connected</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="enable-notifications" class="btn btn-secondary"
+                    style="display: none; padding: 0.25rem 0.5rem; font-size: 0.8rem; background-color: #53bdeb; border-color: #53bdeb; color: white;">
+                    🔔 Enable Notifications
+                </button>
+                <a href="{% url 'chatPage' %}" class="btn btn-secondary"
+                    style="padding: 0.25rem 0.5rem; font-size: 0.9rem;">Leave Room</a>
+            </div>
+        </div>
     </div>
 
     <div class="chat-container">
@@ -190,6 +203,59 @@ Chat with {{ other_user.username }}
     const roomType = JSON.parse(document.getElementById('room-type').textContent);
     const username = JSON.parse(document.getElementById('user-username').textContent);
 
+    // Connection management variables
+    let messageQueue = [];
+    let isConnected = false;
+    let chatSocket = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_DELAY = 3000; // 3 seconds
+
+    // Notification variables
+    let originalTitle = document.title;
+    let unreadCount = 0;
+
+    const notificationBtn = document.getElementById('enable-notifications');
+
+    function checkNotificationPermission() {
+        if ('Notification' in window) {
+            if (Notification.permission === 'default') {
+                notificationBtn.style.display = 'block';
+            } else if (Notification.permission === 'granted') {
+                notificationBtn.style.display = 'none';
+            } else {
+                // Denied
+                notificationBtn.textContent = '🚫 Notifications Blocked';
+                notificationBtn.style.display = 'block';
+                notificationBtn.disabled = true;
+            }
+        }
+    }
+
+    if (notificationBtn) {
+        notificationBtn.onclick = function () {
+            Notification.requestPermission().then(permission => {
+                console.log("Notification permission result:", permission);
+                checkNotificationPermission();
+                if (permission === 'granted') {
+                    new Notification("Notifications Enabled!", {
+                        body: "You will now receive alerts for new messages.",
+                        icon: 'https://cdn-icons-png.flaticon.com/512/733/733585.png'
+                    });
+                }
+            });
+        };
+    }
+
+    // Initial check
+    checkNotificationPermission();
+
+    // Request notification permission on load (some browsers allow this, some don't)
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(checkNotificationPermission);
+    }
+
+    // WebSocket URL
     let wsUrl;
     if (roomType === 'private') {
         wsUrl = 'ws://' + window.location.host + '/ws/chat/private/' + roomName + '/';
@@ -197,28 +263,89 @@ Chat with {{ other_user.username }}
         wsUrl = 'ws://' + window.location.host + '/ws/chat/group/' + roomName + '/';
     }
 
-    const chatSocket = new WebSocket(wsUrl);
+    // Initialize WebSocket connection
+    function initWebSocket() {
+        chatSocket = new WebSocket(wsUrl);
 
-    chatSocket.onmessage = function (e) {
-        const data = JSON.parse(e.data);
+        chatSocket.onopen = function (e) {
+            console.log('WebSocket connected');
+            isConnected = true;
+            reconnectAttempts = 0; // Reset on successful connection
 
-        if (data.type === 'chat_message') {
-            handleChatMessage(data);
-        } else if (data.type === 'typing') {
-            handleTyping(data);
-        } else if (data.type === 'read_receipt') {
-            handleReadReceipt(data);
-        } else if (data.type === 'bulk_read') {
-            handleBulkRead(data);
-        } else if (data.type === 'unread_count_update') {
-            // This would be handled if we were on the lobby page, 
-            // but since we are on the chat page, we might not need it 
-            // unless we have a sidebar.
-        } else {
-            // Fallback for old message format if any
-            if (data.message) handleChatMessage(data);
+            // Update connection status indicator
+            updateConnectionStatus('Connected', 'green');
+
+            // Send any queued messages
+            while (messageQueue.length > 0) {
+                const msg = messageQueue.shift();
+                chatSocket.send(JSON.stringify(msg));
+                console.log('Sent queued message:', msg);
+            }
+        };
+
+        chatSocket.onerror = function (e) {
+            console.error('WebSocket error:', e);
+            isConnected = false;
+            updateConnectionStatus('Error', 'red');
+        };
+
+        chatSocket.onclose = function (e) {
+            console.log('WebSocket closed:', e.code, e.reason);
+            isConnected = false;
+
+            // Attempt to reconnect with exponential backoff
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempts++;
+                const delay = RECONNECT_DELAY * reconnectAttempts; // Exponential backoff
+
+                updateConnectionStatus(`Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`, 'orange');
+                console.log(`Reconnecting... Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+
+                setTimeout(() => {
+                    initWebSocket();
+                }, delay);
+            } else {
+                console.error('Max reconnection attempts reached');
+                updateConnectionStatus('Connection Failed', 'red');
+
+                // Show user a more helpful message
+                if (confirm('Connection lost. Click OK to refresh the page and reconnect.')) {
+                    location.reload();
+                }
+            }
+        };
+
+        chatSocket.onmessage = function (e) {
+            const data = JSON.parse(e.data);
+
+            if (data.type === 'chat_message') {
+                handleChatMessage(data);
+            } else if (data.type === 'typing') {
+                handleTyping(data);
+            } else if (data.type === 'read_receipt') {
+                handleReadReceipt(data);
+            } else if (data.type === 'bulk_read') {
+                handleBulkRead(data);
+            } else if (data.type === 'unread_count_update') {
+                // This would be handled if we were on the lobby page
+            } else {
+                // Fallback for old message format if any
+                if (data.message) handleChatMessage(data);
+            }
+        };
+    }
+
+    // Initialize connection
+    initWebSocket();
+
+    // Connection status indicator
+    function updateConnectionStatus(status, color) {
+        const statusEl = document.getElementById('connection-status');
+        if (statusEl) {
+            statusEl.textContent = status;
+            statusEl.style.color = color;
         }
-    };
+    }
 
     function handleChatMessage(data) {
         const message = data.message;
@@ -229,6 +356,7 @@ Chat with {{ other_user.username }}
         const messageElement = document.createElement('div');
 
         const isMe = sender === username;
+        console.log(`Notification Debug: Received message from ${sender}. isMe: ${isMe}`);
         messageElement.classList.add('message', isMe ? 'sent' : 'received');
         if (msgId) messageElement.id = `msg-${msgId}`;
 
@@ -249,8 +377,45 @@ Chat with {{ other_user.username }}
         chatLog.scrollTop = chatLog.scrollHeight;
 
         // If I received a message (not from me), send read receipt
-        if (!isMe && document.hasFocus()) {
+        if (!isMe) {
             sendReadReceipt(msgId);
+
+            // Handle notifications if window is not focused
+            if (!document.hasFocus()) {
+                console.log("Notification Debug: Window is NOT focused");
+                console.log("Notification Debug: Permission is", Notification.permission);
+
+                // 1. Desktop Notification
+                if ('Notification' in window) {
+                    if (Notification.permission === 'granted') {
+                        try {
+                            const notification = new Notification(`New message from ${sender}`, {
+                                body: message,
+                                icon: 'https://cdn-icons-png.flaticon.com/512/733/733585.png', // Reliable public icon
+                                tag: 'chat-notification'
+                            });
+                            console.log("Notification Debug: Notification sent successfully");
+
+                            notification.onclick = function () {
+                                window.focus();
+                                this.close();
+                            };
+                        } catch (err) {
+                            console.error("Notification Debug: Error creating notification:", err);
+                        }
+                    } else {
+                        console.warn("Notification Debug: Permission not granted. Status:", Notification.permission);
+                    }
+                } else {
+                    console.error("Notification Debug: Browser does not support Desktop Notifications");
+                }
+
+                // 2. Tab Title Notification
+                unreadCount++;
+                document.title = `(${unreadCount}) ${originalTitle}`;
+            } else {
+                console.log("Notification Debug: Window IS focused, skipping desktop notification");
+            }
         }
     }
 
@@ -290,35 +455,41 @@ Chat with {{ other_user.username }}
 
     function sendReadReceipt(msgId) {
         if (!msgId) return;
-        chatSocket.send(JSON.stringify({
+        const payload = {
             'type': 'read_receipt',
             'message_id': msgId,
             'username': username
-        }));
-    }
+        };
 
-    chatSocket.onclose = function (e) {
-        console.error('Chat socket closed unexpectedly');
-    };
+        if (isConnected) {
+            chatSocket.send(JSON.stringify(payload));
+        } else {
+            messageQueue.push(payload);
+        }
+    }
 
     const messageInput = document.querySelector('#chat-message-input');
 
     // Typing indicator logic
     let typingTimeout;
     messageInput.addEventListener('input', () => {
-        chatSocket.send(JSON.stringify({
-            'type': 'typing',
-            'is_typing': true,
-            'username': username
-        }));
+        if (isConnected) {
+            chatSocket.send(JSON.stringify({
+                'type': 'typing',
+                'is_typing': true,
+                'username': username
+            }));
+        }
 
         clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
-            chatSocket.send(JSON.stringify({
-                'type': 'typing',
-                'is_typing': false,
-                'username': username
-            }));
+            if (isConnected) {
+                chatSocket.send(JSON.stringify({
+                    'type': 'typing',
+                    'is_typing': false,
+                    'username': username
+                }));
+            }
         }, 2000);
     });
 
@@ -332,20 +503,39 @@ Chat with {{ other_user.username }}
     document.querySelector('#chat-message-submit').onclick = function (e) {
         const message = messageInput.value;
         if (message.trim()) {
-            chatSocket.send(JSON.stringify({
+            const payload = {
                 'type': 'chat_message',
                 'message': message,
                 'username': username
-            }));
-            messageInput.value = '';
+            };
+
+            if (isConnected) {
+                chatSocket.send(JSON.stringify(payload));
+                messageInput.value = '';
+            } else {
+                // Queue message for retry
+                messageQueue.push(payload);
+                console.log('Message queued for retry');
+
+                // Show user feedback
+                const statusEl = document.getElementById('connection-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Queued (will send when reconnected)';
+                    statusEl.style.color = 'orange';
+                }
+
+                messageInput.value = '';
+            }
 
             // Clear typing immediately
             clearTimeout(typingTimeout);
-            chatSocket.send(JSON.stringify({
-                'type': 'typing',
-                'is_typing': false,
-                'username': username
-            }));
+            if (isConnected) {
+                chatSocket.send(JSON.stringify({
+                    'type': 'typing',
+                    'is_typing': false,
+                    'username': username
+                }));
+            }
         }
     };
 
@@ -355,8 +545,29 @@ Chat with {{ other_user.username }}
 
     // Send read receipts for existing unread messages on load/focus?
     // For simplicity, we'll just handle new messages or when clicking the window
+    // Send read receipts for all messages when window is focused
+    // Send read receipts for all messages when window is focused
     window.addEventListener('focus', () => {
-        // Ideally we'd check for unread messages here
+        // Reset unread count and title
+        unreadCount = 0;
+        document.title = originalTitle;
+
+        if (isConnected) {
+            chatSocket.send(JSON.stringify({
+                'type': 'mark_read',
+                'username': username
+            }));
+        }
     });
+
+    // Also call it once on load
+    setTimeout(() => {
+        if (isConnected) {
+            chatSocket.send(JSON.stringify({
+                'type': 'mark_read',
+                'username': username
+            }));
+        }
+    }, 1000);
 </script>
 {% endblock %}

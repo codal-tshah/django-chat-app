@@ -81,6 +81,11 @@
     // Real-time notifications
     const lobbySocket = new WebSocket('ws://' + window.location.host + '/ws/chat/lobby/');
 
+    // Notification permission logic
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
     lobbySocket.onmessage = function (e) {
         const data = JSON.parse(e.data);
         if (data.type === 'notification') {
@@ -89,16 +94,36 @@
             // Don't notify if I sent the message
             if (data.sender === currentUser) return;
 
+            let shouldNotify = false;
+            let notificationTitle = "";
+            let notificationBody = data.message;
+
             if (data.room_type === 'private') {
                 // Check if the notification is for me
                 if (data.target_user === currentUser) {
                     const sender = data.sender;
                     updateBadge(`a[href*="/chat/private/${sender}"]`);
+                    shouldNotify = true;
+                    notificationTitle = `New message from ${sender}`;
                 }
             } else if (data.room_type === 'group') {
                 // For group chats, everyone in the lobby gets notified
                 const roomName = data.room_name;
                 updateBadge(`a[href*="/chat/group/${roomName}"]`);
+                shouldNotify = true;
+                notificationTitle = `New message in #${roomName}`;
+                notificationBody = `${data.sender}: ${data.message}`;
+            }
+
+            // Trigger Desktop Notification
+            if (shouldNotify && !document.hasFocus()) {
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification(notificationTitle, {
+                        body: notificationBody,
+                        icon: 'https://cdn-icons-png.flaticon.com/512/733/733585.png',
+                        tag: 'chat-notification'
+                    });
+                }
             }
         }
     };

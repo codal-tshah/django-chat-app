@@ -21,15 +21,15 @@ TABLE OF CONTENTS
 ------------------------------------
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         CLIENT LAYER (Browser)                       │
+│                         CLIENT LAYER (Browser)                      │
 ├─────────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │ Login Page   │  │ Lobby Page   │  │  Chat Page   │              │
-│  │ (HTML/CSS/JS)│  │ (HTML/CSS/JS)│  │ (HTML/CSS/JS)│              │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘              │
-│         │                  │                  │                       │
-│         │ HTTP             │ HTTP + WebSocket │ WebSocket            │
-└─────────┼──────────────────┼──────────────────┼───────────────────────┘
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │ Login Page   │  │ Lobby Page   │  │  Chat Page   │               │
+│  │ (HTML/CSS/JS)│  │ (HTML/CSS/JS)│  │ (HTML/CSS/JS)│               │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘               │
+│         │                  │                  │                     │
+│         │ HTTP             │ HTTP + WebSocket │ WebSocket           │
+└─────────┼──────────────────┼──────────────────┼─────────────────────┘
           │                  │                  │
           ▼                  ▼                  ▼
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -37,40 +37,40 @@ TABLE OF CONTENTS
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  ┌────────────────────────────────────────────────────────────┐     │
-│  │                    ASGI SERVER (Daphne)                     │     │
-│  │  ┌──────────────────────┐  ┌──────────────────────────┐   │    │
-│  │  │   HTTP Handler       │  │   WebSocket Handler      │   │    │
-│  │  │  (Django Views)      │  │   (Django Channels)      │   │    │
-│  │  └──────────┬───────────┘  └──────────┬───────────────┘   │    │
-│  └─────────────┼────────────────────────┼─────────────────────┘    │
-│                │                        │                            │
-│                ▼                        ▼                            │
-│  ┌─────────────────────┐    ┌──────────────────────────┐           │
-│  │   Views Layer       │    │   Consumers Layer        │           │
-│  │  - loginPage()      │    │  - ChatConsumer          │           │
-│  │  - chatPage()       │    │    * connect()           │           │
-│  │  - groupRoomPage()  │    │    * receive()           │           │
-│  │  - privateRoomPage()│    │    * disconnect()        │           │
-│  └─────────┬───────────┘    └──────────┬───────────────┘           │
-│            │                           │                             │
+│  │                    ASGI SERVER (Daphne)                    │     │
+│  │  ┌──────────────────────┐  ┌──────────────────────────┐    │     │
+│  │  │   HTTP Handler       │  │   WebSocket Handler      │    │     │
+│  │  │  (Django Views)      │  │   (Django Channels)      │    │     │
+│  │  └──────────┬───────────┘  └──────────┬───────────────┘    │     │
+│  └─────────────┼────────────────────────┼─────────────────────┘     │
+│                │                        │                           │
+│                ▼                        ▼                           │
+│  ┌─────────────────────┐    ┌──────────────────────────┐            │
+│  │   Views Layer       │    │   Consumers Layer        │            │
+│  │  - loginPage()      │    │  - ChatConsumer          │            │
+│  │  - chatPage()       │    │    * connect()           │            │
+│  │  - groupRoomPage()  │    │    * receive()           │            │
+│  │  - privateRoomPage()│    │    * disconnect()        │            │
+│  └─────────┬───────────┘    └──────────┬───────────────┘            │
+│            │                           │                            │
 │            │         ┌─────────────────┴─────────────┐              │
 │            │         │                               │              │
 │            ▼         ▼                               ▼              │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │              CHANNEL LAYER (Redis)                       │       │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │       │
-│  │  │ chat_lobby   │  │ chat_room1   │  │ chat_private │  │       │
-│  │  │   (Group)    │  │   (Group)    │  │   (Group)    │  │       │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘  │       │
-│  └─────────────────────────────────────────────────────────┘       │
-│            │                                                         │
-│            ▼                                                         │
-│  ┌─────────────────────────────────────────────────────────┐       │
-│  │              DATABASE LAYER (SQLite)                     │       │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐              │       │
-│  │  │   User   │  │ ChatRoom │  │ Message  │              │       │
-│  │  └──────────┘  └──────────┘  └──────────┘              │       │
-│  └─────────────────────────────────────────────────────────┘       │
+│  ┌─────────────────────────────────────────────────────────┐        │
+│  │              CHANNEL LAYER (Redis)                      │        │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │        │
+│  │  │ chat_lobby   │  │ chat_room1   │  │ chat_private │   │        │
+│  │  │   (Group)    │  │   (Group)    │  │   (Group)    │   │        │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘   │        │
+│  └─────────────────────────────────────────────────────────┘        │
+│            │                                                        │
+│            ▼                                                        │
+│  ┌─────────────────────────────────────────────────────────┐        │
+│  │              DATABASE LAYER (SQLite)                    │        │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐               │        │
+│  │  │   User   │  │ ChatRoom │  │ Message  │               │        │
+│  │  └──────────┘  └──────────┘  └──────────┘               │        │
+│  └─────────────────────────────────────────────────────────┘        │
 └─────────────────────────────────────────────────────────────────────┘
 
 1.2. Component Interaction Flow
@@ -90,10 +90,10 @@ WebSocket Flow (Real-time Messaging):
 ---------------------------------
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                          User (Django Auth)                      │
+│                          User (Django Auth)                     │
 ├─────────────────────────────────────────────────────────────────┤
-│ • id (PK)                                                        │
-│ • username                                                       │
+│ • id (PK)                                                       │
+│ • username                                                      │
 │ • password (not used - passwordless auth)                       │
 └──────────────┬──────────────────────────────┬───────────────────┘
                │                              │
@@ -185,7 +185,7 @@ Message Model:
 │    - Query: Message.objects.filter(room=private_room)    │
 │              .exclude(read_by=current_user)              │
 │              .exclude(sender=current_user).count()       │
-│                                                           
+│                                                          │ 
 │ 5. For each room:                                        │
 │    - Calculate unread_count for group chat               │
 │    - Query: Message.objects.filter(room=room)            │
@@ -228,14 +228,14 @@ Message Model:
 │ 3. Parse incoming JSON data                                     │
 │                                                                 │
 │ 4. Call save_message(username, room_name, message)              │
-│    ┌──────────────────────────────────────────────────┐        │
-│    │ @database_sync_to_async                          │        │
-│    │ - Get User object                                │        │
-│    │ - Get or Create ChatRoom                         │        │
-│    │ - Create Message object                          │        │
-│    │ - Add sender to message.read_by (self-read)      │        │
-│    │ - Return message.id                              │        │
-│    └──────────────────────────────────────────────────┘        │
+│    ┌──────────────────────────────────────────────────┐         │
+│    │ @database_sync_to_async                          │         │
+│    │ - Get User object                                │         │
+│    │ - Get or Create ChatRoom                         │         │
+│    │ - Create Message object                          │         │
+│    │ - Add sender to message.read_by (self-read)      │         │
+│    │ - Return message.id                              │         │
+│    └──────────────────────────────────────────────────┘         │
 │                                                                 │
 │ 5. Broadcast to room group:                                     │
 │    channel_layer.group_send(                                    │
@@ -306,16 +306,16 @@ Message Model:
 │ 3. Join room group: "chat_private_alice_bob"                     │
 │                                                                  │
 │ 4. Call mark_room_read(room_name, user)                          │
-│    ┌────────────────────────────────────────────────┐           │
-│    │ @database_sync_to_async                        │           │
-│    │ - Get ChatRoom                                 │           │
-│    │ - Get all messages NOT read by Bob             │           │
-│    │   AND NOT sent by Bob                          │           │
-│    │ - For each message:                            │           │
-│    │   * message.read_by.add(bob)                   │           │
-│    │   * Collect message IDs                        │           │
-│    │ - Return list of IDs [101, 102, 103]           │           │
-│    └────────────────────────────────────────────────┘           │
+│    ┌────────────────────────────────────────────────┐            │
+│    │ @database_sync_to_async                        │            │
+│    │ - Get ChatRoom                                 │            │
+│    │ - Get all messages NOT read by Bob             │            │
+│    │   AND NOT sent by Bob                          │            │
+│    │ - For each message:                            │            │
+│    │   * message.read_by.add(bob)                   │            │
+│    │   * Collect message IDs                        │            │
+│    │ - Return list of IDs [101, 102, 103]           │            │
+│    └────────────────────────────────────────────────┘            │
 │                                                                  │
 │ 5. If read_msg_ids not empty:                                    │
 │    Broadcast to room group:                                      │
@@ -510,11 +510,36 @@ We have enhanced the application with the following features:
 - **Notifications**:
   - **Unread Counts**: The lobby displays a green badge with the count of unread messages for each private chat.
 
+### 7.5. Reliability & Error Handling
+- **Connection Monitoring**: 
+  - The `ChatConsumer` now tracks `active_connections` using a class-level counter.
+  - Real-time logging of connection/disconnection events with user details and active counts.
+- **Robust Reconnection**:
+  - Implemented exponential backoff for WebSocket reconnections (up to 5 attempts).
+  - Visual connection status indicator (Connected, Reconnecting, Failed) with user prompts.
+- **Redis Error Suppression**:
+  - Custom `SuppressRedisErrorsMiddleware` catches Redis connection issues gracefully.
+  - Refined logging configuration to prevent verbose stack traces during Redis downtime.
+
+### 7.6. Notifications & UX
+- **Desktop Notifications**:
+  - Native browser alerts for new messages when the window is out of focus.
+  - Implemented in both the chat room and the lobby (for all relevant rooms).
+  - Manual "Enable Notifications" button to handle browser permission restrictions.
+- **Tab Title Notifications**:
+  - Dynamic unread count in the browser tab title (e.g., "(3) Chat with Job").
+  - Automatically resets when the window regains focus.
+- **Session Management**:
+  - Configured unique session cookie names and database-backed sessions to prevent user conflicts when testing in multiple tabs.
+- **Real-time Read Sync**:
+  - Added a `window.focus` listener that triggers a `mark_read` event, ensuring all messages are marked as read the moment a user looks at the chat.
+
 8. Key Functions & Logic
 ------------------------
 
 ### 8.1. Consumer Functions (`chat/consumers.py`)
 - **`connect()`**: Handles new WebSocket connections.
+  - Increments `active_connections` counter.
   - Joins the appropriate channel group (room or lobby).
   - Triggers `mark_room_read` to update read status for the user.
   - Broadcasts `bulk_read` event if messages were marked as read.
@@ -522,9 +547,13 @@ We have enhanced the application with the following features:
   - **`chat_message`**: Saves message to DB and broadcasts to room. Triggers lobby notification for private chats.
   - **`typing`**: Broadcasts typing status to room.
   - **`read_receipt`**: Marks specific message as read and broadcasts update.
+  - **`mark_read`**: Bulk updates all messages in the room as read (triggered on window focus).
+- **`disconnect()`**: Handles WebSocket closure.
+  - Decrements `active_connections` counter only if the connection was fully established.
+  - Removes the user from the Channel Layer group.
 - **`save_message(username, room_name, message)`**: Async wrapper for DB creation. Adds sender to `read_by` immediately.
 - **`mark_room_read(room_name, user)`**: Bulk updates all unread messages in a room for the user. Returns list of updated IDs.
-- **`notification(event)`**: Sends real-time unread count updates to the lobby.
+- **`notification(event)`**: Sends real-time unread count updates and message content to the lobby.
 
 ### 8.2. View Functions (`chat/views.py`)
 - **`chatPage` (Lobby)**:
