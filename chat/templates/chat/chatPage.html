@@ -201,6 +201,9 @@ Chat with {{ other_user.username }}
     let messageQueue = [];
     let isConnected = false;
     let chatSocket = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_DELAY = 3000; // 3 seconds
 
     // WebSocket URL
     let wsUrl;
@@ -217,6 +220,7 @@ Chat with {{ other_user.username }}
         chatSocket.onopen = function (e) {
             console.log('WebSocket connected');
             isConnected = true;
+            reconnectAttempts = 0; // Reset on successful connection
 
             // Update connection status indicator
             updateConnectionStatus('Connected', 'green');
@@ -238,14 +242,27 @@ Chat with {{ other_user.username }}
         chatSocket.onclose = function (e) {
             console.log('WebSocket closed:', e.code, e.reason);
             isConnected = false;
-            updateConnectionStatus('Disconnected', 'orange');
 
-            // Attempt to reconnect after 3 seconds
-            setTimeout(() => {
-                console.log('Attempting to reconnect...');
-                updateConnectionStatus('Reconnecting...', 'orange');
-                initWebSocket();
-            }, 3000);
+            // Attempt to reconnect with exponential backoff
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempts++;
+                const delay = RECONNECT_DELAY * reconnectAttempts; // Exponential backoff
+
+                updateConnectionStatus(`Reconnecting (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`, 'orange');
+                console.log(`Reconnecting... Attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+
+                setTimeout(() => {
+                    initWebSocket();
+                }, delay);
+            } else {
+                console.error('Max reconnection attempts reached');
+                updateConnectionStatus('Connection Failed', 'red');
+
+                // Show user a more helpful message
+                if (confirm('Connection lost. Click OK to refresh the page and reconnect.')) {
+                    location.reload();
+                }
+            }
         };
 
         chatSocket.onmessage = function (e) {
