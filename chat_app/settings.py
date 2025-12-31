@@ -146,6 +146,14 @@ LOGGING = {
 # Suppress verbose exception reporting for expected errors
 DEBUG_PROPAGATE_EXCEPTIONS = False
 
+# Session Configuration
+# Use a unique session cookie name to avoid conflicts
+SESSION_COOKIE_NAME = 'django_chat_sessionid'
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_SAVE_EVERY_REQUEST = True  # Save session on every request
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'  # Use database-backed sessions
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
