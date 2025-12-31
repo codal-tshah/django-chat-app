@@ -135,6 +135,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         "username": username
                     }
                 )
+        elif msg_type == "mark_read":
+            # Mark all messages in the room as read by this user
+            read_msg_ids = await self.mark_room_read(self.room_name, self.scope["user"])
+            if read_msg_ids:
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "bulk_read",
+                        "message_ids": read_msg_ids,
+                        "username": self.scope["user"].username
+                    }
+                )
 
     # Receive message from room group
     async def chat_message(self, event):

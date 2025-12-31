@@ -326,7 +326,7 @@ Chat with {{ other_user.username }}
         chatLog.scrollTop = chatLog.scrollHeight;
 
         // If I received a message (not from me), send read receipt
-        if (!isMe && document.hasFocus()) {
+        if (!isMe) {
             sendReadReceipt(msgId);
         }
     }
@@ -457,8 +457,24 @@ Chat with {{ other_user.username }}
 
     // Send read receipts for existing unread messages on load/focus?
     // For simplicity, we'll just handle new messages or when clicking the window
+    // Send read receipts for all messages when window is focused
     window.addEventListener('focus', () => {
-        // Ideally we'd check for unread messages here
+        if (isConnected) {
+            chatSocket.send(JSON.stringify({
+                'type': 'mark_read',
+                'username': username
+            }));
+        }
     });
+
+    // Also call it once on load
+    setTimeout(() => {
+        if (isConnected) {
+            chatSocket.send(JSON.stringify({
+                'type': 'mark_read',
+                'username': username
+            }));
+        }
+    }, 1000);
 </script>
 {% endblock %}
